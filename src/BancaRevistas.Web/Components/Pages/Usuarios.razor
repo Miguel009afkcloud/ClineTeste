@@ -1,0 +1,196 @@
+@page "/usuarios"
+@inject BancaApiClient Api
+@inject AuthService Auth
+
+<PageTitle>Usuários - Banca de Revistas</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(Mensagem))
+{
+    <div class="alerta @(Sucesso ? "alerta-sucesso" : "alerta-erro")">
+        <span>@(Sucesso ? "✓" : "⚠")</span><span>@Mensagem</span>
+        <button class="btn-banca btn-secundario btn-sm ms-auto" @onclick="() => Mensagem = null">Fechar</button>
+    </div>
+}
+
+<div class="card-banca mb-4">
+    <div class="card-header-banca">
+        <span>🔐 Funcionários da banca</span>
+        <button class="btn-banca btn-primario btn-sm" @onclick="AbrirNovo">+ Novo funcionário</button>
+    </div>
+    <div class="card-body-banca">
+        @if (ListaUsuarios.Count == 0)
+        {
+            <div class="vazio"><div class="vazio-icone">🔐</div><p>Nenhum usuário cadastrado.</p></div>
+        }
+        else
+        {
+            <div class="tabela-wrapper">
+                <table class="tabela-banca">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Email</th>
+                            <th>Perfil</th>
+                            <th>Situação</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var usuario in ListaUsuarios)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@usuario.Nome</strong>
+                                    @if (usuario.Id == Auth.Usuario?.Id)
+                                    {
+                                        <span class="selo selo-azul" style="margin-left:6px">você</span>
+                                    }
+                                </td>
+                                <td class="text-pequeno">@usuario.Email</td>
+                                <td><span class="selo @CorPermissao(usuario.Permissao)">@usuario.Permissao</span></td>
+                                <td>
+                                    <span class="selo @(usuario.Ativo ? "selo-verde" : "selo-cinza")">@(usuario.Ativo ? "Ativo" : "Inativo")</span>
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn-banca btn-secundario btn-sm" @onclick="() => AbrirEdicao(usuario)">Editar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@if (MostrarModal)
+{
+    <div class="modal-fundo" @onclick="FecharModal">
+        <div class="modal-caixa" @onclick:stopPropagation="true">
+            <div class="modal-cabecalho">
+                <span>@(Editando?.Id > 0 ? "Editar funcionário" : "Novo funcionário")</span>
+                <button class="fechar-modal" @onclick="FecharModal">×</button>
+            </div>
+            <div class="modal-corpo">
+                <div class="row-form">
+                    <div style="grid-column: span 2">
+                        <label class="form-label">Nome *</label>
+                        <input class="form-control" @bind="Formulario.Nome" />
+                    </div>
+                    <div>
+                        <label class="form-label">Email *</label>
+                        <input class="form-control" @bind="Formulario.Email" />
+                    </div>
+                    <div>
+                        <label class="form-label">Perfil de acesso</label>
+                        <select class="form-select" @bind="Formulario.Permissao">
+                            @foreach (var permissao in Enum.GetValues<PermissaoUsuario>())
+                            {
+                                <option value="@permissao">@permissao</option>
+                            }
+                        </select>
+                    </div>
+                    @if (Editando is null)
+                    {
+                        <div style="grid-column: span 2">
+                            <label class="form-label">Senha *</label>
+                            <input class="form-control" type="password" @bind="Formulario.Senha" />
+                            <div class="form-hint">Mínimo de 6 caracteres. Armazenada apenas como hash BCrypt.</div>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-rodape">
+                <button class="btn-banca btn-secundario" @onclick="FecharModal">Cancelar</button>
+                <button class="btn-banca btn-primario" @onclick="SalvarAsync" disabled="@Processando">Salvar</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<UsuarioDto> ListaUsuarios = new();
+    private bool MostrarModal;
+    private CriarUsuarioRequest Formulario = new() { Permissao = PermissaoUsuario.Operador };
+    private UsuarioDto? Editando;
+    private bool Processando;
+    private string? Mensagem;
+    private bool Sucesso;
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        var resultado = await Api.GetListAsync<UsuarioDto>("api/usuarios");
+        if (resultado.Sucesso && resultado.Dados is not null) ListaUsuarios = resultado.Dados;
+    }
+
+    private void AbrirNovo()
+    {
+        Editando = null;
+        Formulario = new CriarUsuarioRequest { Permissao = PermissaoUsuario.Operador };
+        MostrarModal = true;
+    }
+
+    private void AbrirEdicao(UsuarioDto usuario)
+    {
+        Editando = usuario;
+        Formulario = new CriarUsuarioRequest { Nome = usuario.Nome, Email = usuario.Email, Permissao = usuario.Permissao };
+        MostrarModal = true;
+    }
+
+    private void FecharModal() => MostrarModal = false;
+
+    private async Task SalvarAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Formulario.Nome) || string.IsNullOrWhiteSpace(Formulario.Email))
+        {
+            Mostrar("Nome e e-mail são obrigatórios.", false);
+            return;
+        }
+
+        Processando = true;
+        bool sucesso;
+        string mensagem;
+
+        if (Editando is null)
+        {
+            var criacao = await Api.PostAsync<UsuarioDto, CriarUsuarioRequest>("api/usuarios", Formulario);
+            sucesso = criacao.Sucesso;
+            mensagem = criacao.Mensagem;
+        }
+        else
+        {
+            var atualizacao = await Api.PutAsync<object, CriarUsuarioRequest>($"api/usuarios/{Editando.Id}", Formulario);
+            sucesso = atualizacao.Sucesso;
+            mensagem = atualizacao.Mensagem;
+        }
+
+        Processando = false;
+
+        if (sucesso)
+        {
+            Mostrar(Editando is null ? "Funcionário cadastrado." : "Funcionário atualizado.", true);
+            MostrarModal = false;
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(mensagem, false);
+        }
+    }
+
+    private void Mostrar(string mensagem, bool sucesso)
+    {
+        Mensagem = mensagem;
+        Sucesso = sucesso;
+    }
+
+    private static string CorPermissao(PermissaoUsuario permissao) => permissao switch
+    {
+        PermissaoUsuario.Administrador => "selo-roxo",
+        PermissaoUsuario.Estoquista => "selo-ambar",
+        PermissaoUsuario.Atendente => "selo-azul",
+        _ => "selo-cinza"
+    };
+}

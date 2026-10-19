@@ -1,0 +1,191 @@
+@page "/fornecedores"
+@inject BancaApiClient Api
+@inject AuthService Auth
+
+<PageTitle>ListaFornecedores - Banca de Revistas</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(Mensagem))
+{
+    <div class="alerta @(Sucesso ? "alerta-sucesso" : "alerta-erro")">
+        <span>@(Sucesso ? "✓" : "⚠")</span><span>@Mensagem</span>
+        <button class="btn-banca btn-secundario btn-sm ms-auto" @onclick="() => Mensagem = null">Fechar</button>
+    </div>
+}
+
+<div class="card-banca mb-4">
+    <div class="card-header-banca">
+        <span>🏢 ListaFornecedores (distribuidoras e editoras)</span>
+        @if (EhEstoquista)
+        {
+            <button class="btn-banca btn-primario btn-sm" @onclick="AbrirNovo">+ Novo fornecedor</button>
+        }
+    </div>
+    <div class="card-body-banca">
+        @if (ListaFornecedores.Count == 0)
+        {
+            <div class="vazio"><div class="vazio-icone">🏢</div><p>Nenhum fornecedor cadastrado.</p></div>
+        }
+        else
+        {
+            <div class="tabela-wrapper">
+                <table class="tabela-banca">
+                    <thead>
+                        <tr>
+                            <th>Razão social</th>
+                            <th>Nome fantasia</th>
+                            <th>CNPJ</th>
+                            <th>Telefone</th>
+                            <th>Email</th>
+                            <th class="text-end">Publicações</th>
+                            <th>Situação</th>
+                            @if (EhEstoquista) { <th></th> }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var fornecedor in ListaFornecedores)
+                        {
+                            <tr>
+                                <td><strong>@fornecedor.RazaoSocial</strong></td>
+                                <td>@(fornecedor.NomeFantasia ?? "-")</td>
+                                <td class="text-pequeno">@(fornecedor.Cnpj ?? "-")</td>
+                                <td class="text-pequeno">@(fornecedor.Telefone ?? "-")</td>
+                                <td class="text-pequeno">@(fornecedor.Email ?? "-")</td>
+                                <td class="text-end">@fornecedor.TotalPublicacoes</td>
+                                <td>
+                                    <span class="selo @(fornecedor.Ativo ? "selo-verde" : "selo-cinza")">@(fornecedor.Ativo ? "Ativo" : "Inativo")</span>
+                                </td>
+                                @if (EhEstoquista)
+                                {
+                                    <td class="text-end">
+                                        <button class="btn-banca btn-secundario btn-sm" @onclick="() => AbrirEdicao(fornecedor)">Editar</button>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@if (MostrarModal)
+{
+    <div class="modal-fundo" @onclick="FecharModal">
+        <div class="modal-caixa" @onclick:stopPropagation="true">
+            <div class="modal-cabecalho">
+                <span>@(Editando?.Id > 0 ? "Editar fornecedor" : "Novo fornecedor")</span>
+                <button class="fechar-modal" @onclick="FecharModal">×</button>
+            </div>
+            <div class="modal-corpo">
+                <div class="row-form">
+                    <div style="grid-column: span 2">
+                        <label class="form-label">Razão social *</label>
+                        <input class="form-control" @bind="Formulario.RazaoSocial" />
+                    </div>
+                    <div>
+                        <label class="form-label">Nome fantasia</label>
+                        <input class="form-control" @bind="Formulario.NomeFantasia" />
+                    </div>
+                    <div>
+                        <label class="form-label">CNPJ</label>
+                        <input class="form-control" @bind="Formulario.Cnpj" />
+                    </div>
+                    <div>
+                        <label class="form-label">Telefone</label>
+                        <input class="form-control" @bind="Formulario.Telefone" />
+                    </div>
+                    <div>
+                        <label class="form-label">Email</label>
+                        <input class="form-control" @bind="Formulario.Email" />
+                    </div>
+                    <div style="grid-column: span 2">
+                        <label class="form-label">Endereço</label>
+                        <input class="form-control" @bind="Formulario.Endereco" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-rodape">
+                <button class="btn-banca btn-secundario" @onclick="FecharModal">Cancelar</button>
+                <button class="btn-banca btn-primario" @onclick="SalvarAsync" disabled="@Processando">Salvar</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<FornecedorDto> ListaFornecedores = new();
+    private bool MostrarModal;
+    private FornecedorInput Formulario = new();
+    private FornecedorDto? Editando;
+    private bool Processando;
+    private string? Mensagem;
+    private bool Sucesso;
+
+    private bool EhEstoquista => Auth.Usuario?.Permissao is PermissaoUsuario.Administrador or PermissaoUsuario.Estoquista;
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        var resultado = await Api.GetListAsync<FornecedorDto>("api/fornecedores?apenasAtivos=false");
+        if (resultado.Sucesso && resultado.Dados is not null) ListaFornecedores = resultado.Dados;
+    }
+
+    private void AbrirNovo()
+    {
+        Editando = null;
+        Formulario = new FornecedorInput();
+        MostrarModal = true;
+    }
+
+    private void AbrirEdicao(FornecedorDto fornecedor)
+    {
+        Editando = fornecedor;
+        Formulario = new FornecedorInput
+        {
+            RazaoSocial = fornecedor.RazaoSocial,
+            NomeFantasia = fornecedor.NomeFantasia,
+            Cnpj = fornecedor.Cnpj,
+            Telefone = fornecedor.Telefone,
+            Email = fornecedor.Email,
+            Endereco = fornecedor.Endereco,
+            Ativo = fornecedor.Ativo
+        };
+        MostrarModal = true;
+    }
+
+    private void FecharModal() => MostrarModal = false;
+
+    private async Task SalvarAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Formulario.RazaoSocial))
+        {
+            Mostrar("A razão social é obrigatória.", false);
+            return;
+        }
+
+        Processando = true;
+        var resultado = Editando is null
+            ? await Api.PostAsync<FornecedorDto, FornecedorInput>("api/fornecedores", Formulario)
+            : await Api.PutAsync<FornecedorDto, FornecedorInput>($"api/fornecedores/{Editando.Id}", Formulario);
+        Processando = false;
+
+        if (resultado.Sucesso)
+        {
+            Mostrar(Editando is null ? "Fornecedor cadastrado." : "Fornecedor atualizado.", true);
+            MostrarModal = false;
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private void Mostrar(string mensagem, bool sucesso)
+    {
+        Mensagem = mensagem;
+        Sucesso = sucesso;
+    }
+}

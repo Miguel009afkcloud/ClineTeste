@@ -1,0 +1,99 @@
+@page "/login"
+@layout Layout.LoginLayout
+@inject AuthService Auth
+@inject NavigationManager Navigation
+
+<div class="login-tela">
+    <div class="login-card">
+        <div class="login-logo">BR</div>
+
+        <div class="login-titulo">
+            <h1>Banca de Revistas</h1>
+            <p>Acesse o sistema de gestão do balcão</p>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Mensagem))
+        {
+            <div class="alerta @(Sucesso ? "alerta-sucesso" : "alerta-erro")">
+                <span>@(Sucesso ? "✓" : "⚠")</span>
+                <span>@Mensagem</span>
+            </div>
+        }
+
+        <EditForm Model="Modelo" OnValidSubmit="EntrarAsync">
+            <DataAnnotationsValidator />
+
+            <div class="mb-3">
+                <label class="form-label" for="email">E-mail</label>
+                <InputText id="email" class="form-control" @bind-Value="Modelo.Email" placeholder="voce@banca.com.br" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" for="senha">Senha</label>
+                <InputText id="senha" type="password" class="form-control" @bind-Value="Modelo.Senha" placeholder="••••••••" />
+            </div>
+
+            <button type="submit" class="btn-banca btn-primario w-100" disabled="@Processando">
+                @if (Processando)
+                {
+                    <span>Entrando...</span>
+                }
+                else
+                {
+                    <span>Entrar no sistema</span>
+                }
+            </button>
+        </EditForm>
+
+        <div class="login-ajuda">
+            <strong>Acessos de demonstração</strong><br />
+            Administrador: <code>admin@banca.com.br</code> / <code>admin123</code><br />
+            Operador: <code>operador@banca.com.br</code> / <code>operador123</code>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly LoginModel Modelo = new();
+    private bool Processando;
+    private string? Mensagem;
+    private bool Sucesso;
+
+    private async Task EntrarAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Modelo.Email) || string.IsNullOrWhiteSpace(Modelo.Senha))
+        {
+            Mensagem = "Informe o e-mail e a senha.";
+            Sucesso = false;
+            return;
+        }
+
+        Processando = true;
+        Mensagem = null;
+
+        try
+        {
+            var (sucesso, mensagem) = await Auth.LoginAsync(Modelo.Email.Trim(), Modelo.Senha);
+            if (sucesso)
+            {
+                Sucesso = true;
+                Mensagem = mensagem;
+                Navigation.NavigateTo("/", forceLoad: true);
+                return;
+            }
+
+            Sucesso = false;
+            Mensagem = mensagem;
+        }
+        finally
+        {
+            Processando = false;
+        }
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Senha { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,223 @@
+@page "/estoque"
+@inject BancaApiClient Api
+@inject AuthService Auth
+
+<PageTitle>Estoque - Banca de Revistas</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(Mensagem))
+{
+    <div class="alerta @(Sucesso ? "alerta-sucesso" : "alerta-erro")">
+        <span>@(Sucesso ? "✓" : "⚠")</span><span>@Mensagem</span>
+        <button class="btn-banca btn-secundario btn-sm ms-auto" @onclick="() => Mensagem = null">Fechar</button>
+    </div>
+}
+
+<div class="grid-kpi">
+    <div class="kpi">
+        <div class="kpi-icone bg-vermelho">⚠</div>
+        <div>
+            <div class="kpi-valor">@Criticos.Count</div>
+            <div class="kpi-rotulo">Itens com estoque crítico</div>
+        </div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-icone bg-laranja">📦</div>
+        <div>
+            <div class="kpi-valor">@Publicacoes.Count</div>
+            <div class="kpi-rotulo">Publicações cadastradas</div>
+        </div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-icone bg-azul">🔄</div>
+        <div>
+            <div class="kpi-valor">@Movimentacoes.Count</div>
+            <div class="kpi-rotulo">Movimentações registradas</div>
+        </div>
+    </div>
+</div>
+
+<div class="pdv-grid">
+    <div class="card-banca">
+        <div class="card-header-banca">
+            <span>🔄 Histórico de movimentações</span>
+            <button class="btn-banca btn-secundario btn-sm" @onclick="CarregarAsync">Atualizar</button>
+        </div>
+        <div class="card-body-banca">
+            @if (Movimentacoes.Count == 0)
+            {
+                <div class="vazio"><div class="vazio-icone">📋</div><p>Nenhuma movimentação registrada.</p></div>
+            }
+            else
+            {
+                <div class="tabela-wrapper">
+                    <table class="tabela-banca">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Publicação</th>
+                                <th>Tipo</th>
+                                <th class="text-end">Qtd.</th>
+                                <th>Motivo</th>
+                                <th>Usuário</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var movimentacao in Movimentacoes)
+                            {
+                                <tr>
+                                    <td class="text-pequeno">@movimentacao.DataMovimentacao.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td>@movimentacao.Publicacao</td>
+                                    <td>
+                                        <span class="selo @CorTipo(movimentacao.Tipo)">@movimentacao.Tipo</span>
+                                    </td>
+                                    <td class="text-end">@movimentacao.Quantidade</td>
+                                    <td class="text-pequeno text-muted-banca">@movimentacao.Motivo</td>
+                                    <td class="text-pequeno">@movimentacao.Usuario</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div>
+        <div class="card-banca mb-4">
+            <div class="card-header-banca"><span>⚠ Estoque crítico</span></div>
+            <div class="card-body-banca">
+                @if (Criticos.Count == 0)
+                {
+                    <div class="vazio"><div class="vazio-icone">✅</div><p>Todo o estoque está acima do mínimo.</p></div>
+                }
+                else
+                {
+                    @foreach (var item in Criticos)
+                    {
+                        <div class="d-flex align-items-center justify-content-between" style="padding:8px 0;border-bottom:1px solid #f0f2f5">
+                            <div>
+                                <div style="font-size:14px">@item.Titulo</div>
+                                <div class="text-pequeno text-muted-banca">Mínimo: @item.EstoqueMinimo</div>
+                            </div>
+                            <span class="selo selo-vermelho">@item.Estoque</span>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        @if (EhEstoquista)
+        {
+            <div class="card-banca">
+                <div class="card-header-banca"><span>✏️ Ajuste de estoque</span></div>
+                <div class="card-body-banca">
+                    <div class="mb-3">
+                        <label class="form-label">Publicação</label>
+                        <select class="form-select" @bind="PublicacaoSelecionadaId">
+                            <option value="">Selecione...</option>
+                            @foreach (var publicacao in Publicacoes)
+                            {
+                                <option value="@publicacao.Id">@publicacao.Titulo (saldo: @publicacao.Estoque)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="row-form mb-3">
+                        <div>
+                            <label class="form-label">Quantidade</label>
+                            <input class="form-control" type="number" min="1" @bind="QuantidadeAjuste" />
+                        </div>
+                        <div>
+                            <label class="form-label">Operação</label>
+                            <select class="form-select" @bind="Somar">
+                                <option value="true">Somar ao estoque</option>
+                                <option value="false">Subtrair do estoque</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo</label>
+                        <input class="form-control" @bind="MotivoAjuste" placeholder="Ex.: Reposição do fornecedor" />
+                    </div>
+                    <button class="btn-banca btn-primario w-100" @onclick="AjustarAsync" disabled="@(PublicacaoSelecionadaId == 0 || Processando)">
+                        Aplicar ajuste
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<PublicacaoDto> Publicacoes = new();
+    private List<EstoqueBaixoDto> Criticos = new();
+    private List<MovimentacaoEstoqueDto> Movimentacoes = new();
+
+    private int PublicacaoSelecionadaId;
+    private int QuantidadeAjuste = 1;
+    private bool Somar = true;
+    private string MotivoAjuste = string.Empty;
+    private bool Processando;
+    private string? Mensagem;
+    private bool Sucesso;
+
+    private bool EhEstoquista => Auth.Usuario?.Permissao is PermissaoUsuario.Administrador or PermissaoUsuario.Estoquista;
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        var pub = await Api.GetListAsync<PublicacaoDto>("api/publicacoes?apenasAtivos=false");
+        if (pub.Sucesso && pub.Dados is not null) Publicacoes = pub.Dados;
+
+        var crit = await Api.GetListAsync<EstoqueBaixoDto>("api/publicacoes/estoque-critico");
+        if (crit.Sucesso && crit.Dados is not null) Criticos = crit.Dados;
+
+        var mov = await Api.GetListAsync<MovimentacaoEstoqueDto>("api/estoque/movimentacoes");
+        if (mov.Sucesso && mov.Dados is not null) Movimentacoes = mov.Dados;
+    }
+
+    private async Task AjustarAsync()
+    {
+        if (QuantidadeAjuste <= 0)
+        {
+            Mostrar("A quantidade deve ser maior que zero.", false);
+            return;
+        }
+
+        Processando = true;
+        var resultado = await Api.PostAsync($"api/estoque/ajustar/{PublicacaoSelecionadaId}",
+            new AjustarEstoqueRequest
+            {
+                Quantidade = QuantidadeAjuste,
+                Motivo = string.IsNullOrWhiteSpace(MotivoAjuste) ? "Ajuste manual" : MotivoAjuste,
+                Somar = Somar
+            });
+        Processando = false;
+
+        if (resultado.Sucesso)
+        {
+            Mostrar("Estoque ajustado com sucesso.", true);
+            MotivoAjuste = string.Empty;
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private void Mostrar(string mensagem, bool sucesso)
+    {
+        Mensagem = mensagem;
+        Sucesso = sucesso;
+    }
+
+    private static string CorTipo(string tipo) => tipo switch
+    {
+        "Entrada" => "selo-verde",
+        "Saida" => "selo-azul",
+        "Devolucao" => "selo-ambar",
+        "Perda" => "selo-vermelho",
+        _ => "selo-cinza"
+    };
+}

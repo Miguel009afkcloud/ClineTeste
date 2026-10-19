@@ -1,0 +1,221 @@
+@page "/caixa"
+@inject BancaApiClient Api
+
+<PageTitle>Caixa - Banca de Revistas</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(Mensagem))
+{
+    <div class="alerta @(Sucesso ? "alerta-sucesso" : "alerta-erro")">
+        <span>@(Sucesso ? "✓" : "⚠")</span><span>@Mensagem</span>
+        <button class="btn-banca btn-secundario btn-sm ms-auto" @onclick="() => Mensagem = null">Fechar</button>
+    </div>
+}
+
+<div class="pdv-grid">
+    <div class="card-banca">
+        <div class="card-header-banca"><span>💰 Histórico de caixas</span></div>
+        <div class="card-body-banca">
+            @if (Caixas.Count == 0)
+            {
+                <div class="vazio"><div class="vazio-icone">💼</div><p>Nenhum caixa registrado.</p></div>
+            }
+            else
+            {
+                <div class="tabela-wrapper">
+                    <table class="tabela-banca">
+                        <thead>
+                            <tr>
+                                <th>Abertura</th>
+                                <th>Operador</th>
+                                <th class="text-end">Inicial</th>
+                                <th class="text-end">Vendas</th>
+                                <th class="text-end">Sangria</th>
+                                <th class="text-end">Final</th>
+                                <th>Situação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var caixa in Caixas)
+                            {
+                                <tr>
+                                    <td class="text-pequeno">@caixa.Abertura.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td>@caixa.Usuario</td>
+                                    <td class="text-end text-dinheiro">@Valor(caixa.ValorInicial)</td>
+                                    <td class="text-end text-dinheiro">@Valor(caixa.TotalVendas)</td>
+                                    <td class="text-end text-dinheiro">@Valor(caixa.Sangria ?? 0)</td>
+                                    <td class="text-end text-dinheiro">@Valor(caixa.ValorFinal ?? 0)</td>
+                                    <td>
+                                        <span class="selo @(caixa.Status == "Aberto" ? "selo-verde" : "selo-cinza")">@caixa.Status</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div>
+        <div class="card-banca mb-4">
+            <div class="card-header-banca"><span>💵 Caixa atual</span></div>
+            <div class="card-body-banca">
+                @if (CaixaAberto is null)
+                {
+                    <p class="text-muted-banca">Nenhum caixa aberto no momento.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Valor inicial (R$)</label>
+                        <input class="form-control" type="number" step="0.01" min="0" @bind="ValorInicial" />
+                    </div>
+                    <button class="btn-banca btn-primario w-100" @onclick="AbrirAsync" disabled="@Processando">Abrir caixa</button>
+                }
+                else
+                {
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="text-muted-banca">Operador</span>
+                        <strong>@CaixaAberto.Usuario</strong>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="text-muted-banca">Aberto em</span>
+                        <strong>@CaixaAberto.Abertura.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="text-muted-banca">Valor inicial</span>
+                        <strong class="text-dinheiro">@Valor(CaixaAberto.ValorInicial)</strong>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="text-muted-banca">Vendas (@CaixaAberto.TotalVendasContagem)</span>
+                        <strong class="text-dinheiro">@Valor(CaixaAberto.TotalVendas)</strong>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="text-muted-banca">Sangrias</span>
+                        <strong class="text-dinheiro">@Valor(CaixaAberto.Sangria ?? 0)</strong>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between" style="padding-top:10px;border-top:1px solid var(--br-borda)">
+                        <span class="text-muted-banca">Valor apurado</span>
+                        <strong class="text-dinheiro" style="font-size:18px">@Valor(CaixaAberto.ValorInicial + CaixaAberto.TotalVendas - (CaixaAberto.Sangria ?? 0))</strong>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (CaixaAberto is not null)
+        {
+            <div class="card-banca mb-4">
+                <div class="card-header-banca"><span>💸 Registrar sangria</span></div>
+                <div class="card-body-banca">
+                    <div class="mb-3">
+                        <label class="form-label">Valor (R$)</label>
+                        <input class="form-control" type="number" step="0.01" min="0" @bind="ValorSangria" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo</label>
+                        <input class="form-control" @bind="MotivoSangria" placeholder="Ex.: Pagamento do fornecedor" />
+                    </div>
+                    <button class="btn-banca btn-secundario w-100" @onclick="RegistrarSangriaAsync" disabled="@Processando">Registrar sangria</button>
+                </div>
+            </div>
+
+            <div class="card-banca">
+                <div class="card-header-banca"><span>🔒 Fechar caixa</span></div>
+                <div class="card-body-banca">
+                    <div class="mb-3">
+                        <label class="form-label">Valor conferido (R$)</label>
+                        <input class="form-control" type="number" step="0.01" min="0" @bind="ValorConferido" />
+                    </div>
+                    <button class="btn-banca btn-perigo w-100" @onclick="FecharAsync" disabled="@Processando">Fechar caixa</button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<CaixaDto> Caixas = new();
+    private CaixaDto? CaixaAberto;
+    private decimal ValorInicial;
+    private decimal ValorSangria;
+    private string MotivoSangria = string.Empty;
+    private decimal ValorConferido;
+    private bool Processando;
+    private string? Mensagem;
+    private bool Sucesso;
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        var lista = await Api.GetListAsync<CaixaDto>("api/caixa");
+        if (lista.Sucesso && lista.Dados is not null) Caixas = lista.Dados;
+
+        var aberto = await Api.GetAsync<CaixaDto>("api/caixa/atual");
+        CaixaAberto = aberto.Sucesso ? aberto.Dados : null;
+    }
+
+    private async Task AbrirAsync()
+    {
+        Processando = true;
+        var resultado = await Api.PostAsync<CaixaDto, AbrirCaixaRequest>("api/caixa/abrir", new AbrirCaixaRequest { ValorInicial = ValorInicial });
+        Processando = false;
+
+        if (resultado.Sucesso)
+        {
+            Mostrar("Caixa aberto com sucesso.", true);
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private async Task RegistrarSangriaAsync()
+    {
+        if (CaixaAberto is null) return;
+
+        Processando = true;
+        var resultado = await Api.PostAsync($"api/caixa/{CaixaAberto.Id}/sangria",
+            new SangriaRequest { Valor = ValorSangria, Motivo = MotivoSangria });
+        Processando = false;
+
+        if (resultado.Sucesso)
+        {
+            Mostrar("Sangria registrada.", true);
+            MotivoSangria = string.Empty;
+            ValorSangria = 0;
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private async Task FecharAsync()
+    {
+        if (CaixaAberto is null) return;
+
+        Processando = true;
+        var resultado = await Api.PostAsync<CaixaDto, FecharCaixaRequest>(
+            $"api/caixa/{CaixaAberto.Id}/fechar", new FecharCaixaRequest { ValorConferido = ValorConferido });
+        Processando = false;
+
+        if (resultado.Sucesso)
+        {
+            Mostrar("Caixa fechado com sucesso.", true);
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private void Mostrar(string mensagem, bool sucesso)
+    {
+        Mensagem = mensagem;
+        Sucesso = sucesso;
+    }
+
+    private static string Valor(decimal valor) => valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+}

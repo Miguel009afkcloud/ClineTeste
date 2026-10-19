@@ -1,0 +1,255 @@
+@page "/assinaturas"
+@inject BancaApiClient Api
+
+<PageTitle>ListaAssinaturas - Banca de Revistas</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(Mensagem))
+{
+    <div class="alerta @(Sucesso ? "alerta-sucesso" : "alerta-erro")">
+        <span>@(Sucesso ? "✓" : "⚠")</span><span>@Mensagem</span>
+        <button class="btn-banca btn-secundario btn-sm ms-auto" @onclick="() => Mensagem = null">Fechar</button>
+    </div>
+}
+
+<div class="card-banca mb-4">
+    <div class="card-header-banca">
+        <span>📬 ListaAssinaturas de publicações</span>
+        <div class="d-flex gap-2">
+            <button class="btn-banca btn-secundario btn-sm" @onclick="ProcessarEntregasAsync">Processar entregas</button>
+            <button class="btn-banca btn-primario btn-sm" @onclick="AbrirNova">+ Nova assinatura</button>
+        </div>
+    </div>
+    <div class="card-body-banca">
+        <div class="row-form">
+            <div>
+                <label class="form-label">Situação</label>
+                <select class="form-select" @bind="StatusFiltro" @bind:after="CarregarAsync">
+                    <option value="">Todas</option>
+                    <option value="Ativa">Ativas</option>
+                    <option value="Pausada">Pausadas</option>
+                    <option value="Cancelada">Canceladas</option>
+                    <option value="Expirada">Expiradas</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card-banca">
+    <div class="card-header-banca"><span>@ListaAssinaturas.Count assinatura(s)</span></div>
+    <div class="card-body-banca">
+        @if (ListaAssinaturas.Count == 0)
+        {
+            <div class="vazio"><div class="vazio-icone">📭</div><p>Nenhuma assinatura encontrada.</p></div>
+        }
+        else
+        {
+            <div class="tabela-wrapper">
+                <table class="tabela-banca">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Publicação</th>
+                            <th class="text-end">Valor mensal</th>
+                            <th>Periodicidade</th>
+                            <th>Início</th>
+                            <th>Próxima entrega</th>
+                            <th>Situação</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var assinatura in ListaAssinaturas)
+                        {
+                            <tr>
+                                <td><strong>@assinatura.Cliente</strong></td>
+                                <td>@assinatura.Publicacao</td>
+                                <td class="text-end text-dinheiro">@Valor(assinatura.ValorMensal)</td>
+                                <td><span class="selo selo-cinza">@assinatura.Periodicidade</span></td>
+                                <td class="text-pequeno">@assinatura.DataInicio.ToString("dd/MM/yyyy")</td>
+                                <td class="text-pequeno">@assinatura.ProximaEntrega.ToString("dd/MM/yyyy")</td>
+                                <td><span class="selo @CorStatus(assinatura.Status)">@assinatura.Status</span></td>
+                                <td class="text-end">
+                                    @if (assinatura.Status == "Ativa")
+                                    {
+                                        <button class="btn-banca btn-secundario btn-sm" @onclick="() => AlterarStatus(assinatura, StatusAssinatura.Pausada)">Pausar</button>
+                                    }
+                                    else if (assinatura.Status == "Pausada")
+                                    {
+                                        <button class="btn-banca btn-verde btn-sm" @onclick="() => AlterarStatus(assinatura, StatusAssinatura.Ativa)">Reativar</button>
+                                    }
+                                    <button class="btn-banca btn-perigo btn-sm" @onclick="() => AlterarStatus(assinatura, StatusAssinatura.Cancelada)">Cancelar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@if (MostrarModal)
+{
+    <div class="modal-fundo" @onclick="FecharModal">
+        <div class="modal-caixa" @onclick:stopPropagation="true">
+            <div class="modal-cabecalho">
+                <span>Nova assinatura</span>
+                <button class="fechar-modal" @onclick="FecharModal">×</button>
+            </div>
+            <div class="modal-corpo">
+                <div class="row-form">
+                    <div>
+                        <label class="form-label">Cliente *</label>
+                        <select class="form-select" @bind="Formulario.ClienteId">
+                            <option value="0">Selecione...</option>
+                            @foreach (var cliente in Clientes)
+                            {
+                                <option value="@cliente.Id">@cliente.Nome</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Publicação *</label>
+                        <select class="form-select" @bind="Formulario.PublicacaoId">
+                            <option value="0">Selecione...</option>
+                            @foreach (var publicacao in Publicacoes)
+                            {
+                                <option value="@publicacao.Id">@publicacao.Titulo (@Valor(publicacao.Preco))</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Valor mensal (R$) *</label>
+                        <input class="form-control" type="number" step="0.01" min="0" @bind="Formulario.ValorMensal" />
+                    </div>
+                    <div>
+                        <label class="form-label">Periodicidade</label>
+                        <select class="form-select" @bind="Formulario.Periodicidade">
+                            <option value="Mensal">Mensal</option>
+                            <option value="Bimestral">Bimestral</option>
+                            <option value="Trimestral">Trimestral</option>
+                            <option value="Semestral">Semestral</option>
+                            <option value="Anual">Anual</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-rodape">
+                <button class="btn-banca btn-secundario" @onclick="FecharModal">Cancelar</button>
+                <button class="btn-banca btn-primario" @onclick="SalvarAsync" disabled="@Processando">Assinar</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AssinaturaDto> ListaAssinaturas = new();
+    private List<ClienteDto> Clientes = new();
+    private List<PublicacaoDto> Publicacoes = new();
+
+    private string StatusFiltro = string.Empty;
+    private bool MostrarModal;
+    private AssinaturaInput Formulario = new() { Periodicidade = "Mensal" };
+    private bool Processando;
+    private string? Mensagem;
+    private bool Sucesso;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarAsync();
+        var cli = await Api.GetListAsync<ClienteDto>("api/clientes");
+        if (cli.Sucesso && cli.Dados is not null) Clientes = cli.Dados;
+
+        var pub = await Api.GetListAsync<PublicacaoDto>("api/publicacoes?apenasAtivos=true");
+        if (pub.Sucesso && pub.Dados is not null) Publicacoes = pub.Dados;
+    }
+
+    private async Task CarregarAsync()
+    {
+        var url = "api/assinaturas";
+        if (!string.IsNullOrWhiteSpace(StatusFiltro)) url += $"?status={Uri.EscapeDataString(StatusFiltro)}";
+
+        var resultado = await Api.GetListAsync<AssinaturaDto>(url);
+        if (resultado.Sucesso && resultado.Dados is not null) ListaAssinaturas = resultado.Dados;
+    }
+
+    private void AbrirNova()
+    {
+        Formulario = new AssinaturaInput { Periodicidade = "Mensal" };
+        MostrarModal = true;
+    }
+
+    private void FecharModal() => MostrarModal = false;
+
+    private async Task SalvarAsync()
+    {
+        if (Formulario.ClienteId == 0 || Formulario.PublicacaoId == 0)
+        {
+            Mostrar("Selecione o cliente e a publicação.", false);
+            return;
+        }
+
+        Processando = true;
+        var resultado = await Api.PostAsync<AssinaturaDto, AssinaturaInput>("api/assinaturas", Formulario);
+        Processando = false;
+
+        if (resultado.Sucesso)
+        {
+            Mostrar("Assinatura criada com sucesso.", true);
+            MostrarModal = false;
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private async Task AlterarStatus(AssinaturaDto assinatura, StatusAssinatura status)
+    {
+        var resultado = await Api.PutAsync<AssinaturaDto, AlterarStatusAssinaturaRequest>(
+            $"api/assinaturas/{assinatura.Id}/status", new AlterarStatusAssinaturaRequest { Status = status });
+
+        if (resultado.Sucesso)
+        {
+            Mostrar($"Assinatura atualizada para '{status}'.", true);
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private async Task ProcessarEntregasAsync()
+    {
+        var resultado = await Api.PostAsync("api/assinaturas/processar-entregas");
+        if (resultado.Sucesso)
+        {
+            Mostrar("Entregas vencidas processadas.", true);
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private void Mostrar(string mensagem, bool sucesso)
+    {
+        Mensagem = mensagem;
+        Sucesso = sucesso;
+    }
+
+    private static string CorStatus(string status) => status switch
+    {
+        "Ativa" => "selo-verde",
+        "Pausada" => "selo-ambar",
+        "Cancelada" => "selo-vermelho",
+        "Expirada" => "selo-cinza",
+        _ => "selo-azul"
+    };
+
+    private static string Valor(decimal valor) => valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+}

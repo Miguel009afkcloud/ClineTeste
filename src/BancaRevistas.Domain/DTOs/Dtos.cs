@@ -4,17 +4,34 @@ namespace BancaRevistas.Domain.DTOs;
 
 // ==================== AUTENTICACAO ====================
 
-public record LoginRequest(string Email, string Senha);
+public class LoginRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string Senha { get; set; } = string.Empty;
+}
 
 public record LoginResponse(string Token, UsuarioDto Usuario);
 
 public record UsuarioDto(int Id, string Nome, string Email, PermissaoUsuario Permissao, bool Ativo);
 
-public record CriarUsuarioRequest(string Nome, string Email, string Senha, PermissaoUsuario Permissao);
+public class CriarUsuarioRequest
+{
+    public string Nome { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Senha { get; set; } = string.Empty;
+    public PermissaoUsuario Permissao { get; set; } = PermissaoUsuario.Operador;
+}
 
-public record AlterarSenhaRequest(string SenhaAtual, string NovaSenha);
+public class AlterarSenhaRequest
+{
+    public string SenhaAtual { get; set; } = string.Empty;
+    public string NovaSenha { get; set; } = string.Empty;
+}
 
-public record LiquidarDividaRequest(decimal Valor);
+public class LiquidarDividaRequest
+{
+    public decimal Valor { get; set; }
+}
 
 // ==================== PUBLICACOES ====================
 
@@ -38,25 +55,32 @@ public record PublicacaoDto(
     bool Ativo,
     bool EstoqueCritico);
 
-public record PublicacaoInput(
-    string Titulo,
-    string? Subtitulo,
-    string? Autor,
-    string? CodigoBarras,
-    TipoPublicacao Tipo,
-    int? CategoriaId,
-    int? FornecedorId,
-    decimal Preco,
-    decimal PrecoCusto,
-    int Estoque,
-    int EstoqueMinimo,
-    string? NumeroEdicao,
-    DateTime? DataPublicacao,
-    bool Ativo = true);
+public class PublicacaoInput
+{
+    public string Titulo { get; set; } = string.Empty;
+    public string? Subtitulo { get; set; }
+    public string? Autor { get; set; }
+    public string? CodigoBarras { get; set; }
+    public TipoPublicacao Tipo { get; set; } = TipoPublicacao.Revista;
+    public int? CategoriaId { get; set; }
+    public int? FornecedorId { get; set; }
+    public decimal Preco { get; set; }
+    public decimal PrecoCusto { get; set; }
+    public int Estoque { get; set; }
+    public int EstoqueMinimo { get; set; }
+    public string? NumeroEdicao { get; set; }
+    public DateTime? DataPublicacao { get; set; }
+    public bool Ativo { get; set; } = true;
+}
 
 public record CategoriaDto(int Id, string Nome, string? Descricao, bool Ativo, int TotalPublicacoes);
 
-public record CategoriaInput(string Nome, string? Descricao, bool Ativo = true);
+public class CategoriaInput
+{
+    public string Nome { get; set; } = string.Empty;
+    public string? Descricao { get; set; }
+    public bool Ativo { get; set; } = true;
+}
 
 public record FornecedorDto(
     int Id,
@@ -69,14 +93,16 @@ public record FornecedorDto(
     bool Ativo,
     int TotalPublicacoes);
 
-public record FornecedorInput(
-    string RazaoSocial,
-    string? NomeFantasia,
-    string? Cnpj,
-    string? Telefone,
-    string? Email,
-    string? Endereco,
-    bool Ativo = true);
+public class FornecedorInput
+{
+    public string RazaoSocial { get; set; } = string.Empty;
+    public string? NomeFantasia { get; set; }
+    public string? Cnpj { get; set; }
+    public string? Telefone { get; set; }
+    public string? Email { get; set; }
+    public string? Endereco { get; set; }
+    public bool Ativo { get; set; } = true;
+}
 
 // ==================== CLIENTES ====================
 
@@ -92,20 +118,29 @@ public record ClienteDto(
     decimal SaldoDevedor,
     int TotalAssinaturas);
 
-public record ClienteInput(
-    string Nome,
-    string? CpfCnpj,
-    string? Telefone,
-    string? Email,
-    string? Endereco,
-    decimal LimiteCredito = 0,
-    bool Ativo = true);
+public class ClienteInput
+{
+    public string Nome { get; set; } = string.Empty;
+    public string? CpfCnpj { get; set; }
+    public string? Telefone { get; set; }
+    public string? Email { get; set; }
+    public string? Endereco { get; set; }
+    public decimal LimiteCredito { get; set; }
+    public bool Ativo { get; set; } = true;
+}
 
 // ==================== CAIXA ====================
 
-public record AbrirCaixaRequest(decimal ValorInicial);
+public class AbrirCaixaRequest
+{
+    public decimal ValorInicial { get; set; }
+}
 
-public record FecharCaixaRequest(decimal ValorConferido, string? Observacoes);
+public class FecharCaixaRequest
+{
+    public decimal ValorConferido { get; set; }
+    public string? Observacoes { get; set; }
+}
 
 public record CaixaDto(
     int Id,
@@ -122,17 +157,29 @@ public record CaixaDto(
     decimal TotalVendas,
     int TotalVendasContagem);
 
-public record SangriaRequest(decimal Valor, string? Motivo);
+public class SangriaRequest
+{
+    public decimal Valor { get; set; }
+    public string? Motivo { get; set; }
+}
 
 // ==================== VENDAS ====================
 
-public record ItemVendaInput(int PublicacaoId, int Quantidade, decimal PrecoUnitario, decimal Desconto = 0);
+public class ItemVendaInput
+{
+    public int PublicacaoId { get; set; }
+    public int Quantidade { get; set; }
+    public decimal PrecoUnitario { get; set; }
+    public decimal Desconto { get; set; }
+}
 
-public record VendaInput(
-    ICollection<ItemVendaInput> Itens,
-    string FormaPagamento,
-    decimal Desconto = 0,
-    int? ClienteId = null);
+public class VendaInput
+{
+    public ICollection<ItemVendaInput> Itens { get; set; } = new List<ItemVendaInput>();
+    public string FormaPagamento { get; set; } = "Dinheiro";
+    public decimal Desconto { get; set; }
+    public int? ClienteId { get; set; }
+}
 
 public record ItemVendaDto(
     int Id,
@@ -157,16 +204,27 @@ public record VendaDto(
     string? Usuario,
     ICollection<ItemVendaDto> Itens);
 
-public record CancelarVendaRequest(string Motivo);
+public class CancelarVendaRequest
+{
+    public string Motivo { get; set; } = string.Empty;
+}
 
 // ==================== COMPRAS ====================
 
-public record ItemCompraInput(int PublicacaoId, int Quantidade, decimal PrecoUnitario, decimal Desconto = 0);
+public class ItemCompraInput
+{
+    public int PublicacaoId { get; set; }
+    public int Quantidade { get; set; }
+    public decimal PrecoUnitario { get; set; }
+    public decimal Desconto { get; set; }
+}
 
-public record CompraInput(
-    int FornecedorId,
-    ICollection<ItemCompraInput> Itens,
-    string? Observacoes);
+public class CompraInput
+{
+    public int FornecedorId { get; set; }
+    public ICollection<ItemCompraInput> Itens { get; set; } = new List<ItemCompraInput>();
+    public string? Observacoes { get; set; }
+}
 
 public record CompraDto(
     int Id,
@@ -180,12 +238,14 @@ public record CompraDto(
 
 // ==================== ASSINATURAS ====================
 
-public record AssinaturaInput(
-    int ClienteId,
-    int PublicacaoId,
-    decimal ValorMensal,
-    string Periodicidade = "Mensal",
-    DateTime? DataInicio = null);
+public class AssinaturaInput
+{
+    public int ClienteId { get; set; }
+    public int PublicacaoId { get; set; }
+    public decimal ValorMensal { get; set; }
+    public string Periodicidade { get; set; } = "Mensal";
+    public DateTime? DataInicio { get; set; }
+}
 
 public record AssinaturaDto(
     int Id,
@@ -199,7 +259,10 @@ public record AssinaturaDto(
     string Periodicidade,
     string Status);
 
-public record AlterarStatusAssinaturaRequest(StatusAssinatura Status);
+public class AlterarStatusAssinaturaRequest
+{
+    public StatusAssinatura Status { get; set; }
+}
 
 // ==================== ESTOQUE ====================
 
@@ -214,7 +277,12 @@ public record MovimentacaoEstoqueDto(
     string? Usuario,
     string? Motivo);
 
-public record AjustarEstoqueRequest(int Quantidade, string Motivo, bool Somar = true);
+public class AjustarEstoqueRequest
+{
+    public int Quantidade { get; set; }
+    public string Motivo { get; set; } = string.Empty;
+    public bool Somar { get; set; } = true;
+}
 
 public record EstoqueBaixoDto(int PublicacaoId, string Titulo, int Estoque, int EstoqueMinimo, string Tipo);
 

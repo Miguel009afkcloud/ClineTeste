@@ -1,0 +1,232 @@
+@page "/clientes"
+@inject BancaApiClient Api
+
+<PageTitle>ListaClientes - Banca de Revistas</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(Mensagem))
+{
+    <div class="alerta @(Sucesso ? "alerta-sucesso" : "alerta-erro")">
+        <span>@(Sucesso ? "✓" : "⚠")</span><span>@Mensagem</span>
+        <button class="btn-banca btn-secundario btn-sm ms-auto" @onclick="() => Mensagem = null">Fechar</button>
+    </div>
+}
+
+<div class="card-banca mb-4">
+    <div class="card-header-banca">
+        <span>👥 ListaClientes da banca</span>
+        <button class="btn-banca btn-primario btn-sm" @onclick="AbrirNovo">+ Novo cliente</button>
+    </div>
+    <div class="card-body-banca">
+        <div class="row-form">
+            <div>
+                <label class="form-label">Buscar</label>
+                <input class="form-control" placeholder="Nome, CPF/CNPJ ou telefone" @bind="Busca" @bind:event="oninput" @bind:after="CarregarAsync" />
+            </div>
+            <div>
+                <label class="form-label">Exibir</label>
+                <select class="form-select" @bind="ApenasAtivos" @bind:after="CarregarAsync">
+                    <option value="true">Somente ativos</option>
+                    <option value="false">Todos</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card-banca">
+    <div class="card-header-banca"><span>@ListaClientes.Count cliente(s)</span></div>
+    <div class="card-body-banca">
+        @if (ListaClientes.Count == 0)
+        {
+            <div class="vazio"><div class="vazio-icone">👤</div><p>Nenhum cliente encontrado.</p></div>
+        }
+        else
+        {
+            <div class="tabela-wrapper">
+                <table class="tabela-banca">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>CPF/CNPJ</th>
+                            <th>Telefone</th>
+                            <th>Email</th>
+                            <th class="text-end">Limite</th>
+                            <th class="text-end">Saldo devedor</th>
+                            <th class="text-end">Assinaturas</th>
+                            <th>Situação</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cliente in ListaClientes)
+                        {
+                            <tr>
+                                <td><strong>@cliente.Nome</strong></td>
+                                <td class="text-pequeno">@(cliente.CpfCnpj ?? "-")</td>
+                                <td class="text-pequeno">@(cliente.Telefone ?? "-")</td>
+                                <td class="text-pequeno">@(cliente.Email ?? "-")</td>
+                                <td class="text-end text-dinheiro">@Valor(cliente.LimiteCredito)</td>
+                                <td class="text-end text-dinheiro" style="color:@(cliente.SaldoDevedor > 0 ? "var(--br-vermelho)" : "inherit")">
+                                    @Valor(cliente.SaldoDevedor)
+                                </td>
+                                <td class="text-end">@cliente.TotalAssinaturas</td>
+                                <td>
+                                    <span class="selo @(cliente.Ativo ? "selo-verde" : "selo-cinza")">@(cliente.Ativo ? "Ativo" : "Inativo")</span>
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn-banca btn-secundario btn-sm" @onclick="() => AbrirEdicao(cliente)">Editar</button>
+                                    @if (cliente.SaldoDevedor > 0)
+                                    {
+                                        <button class="btn-banca btn-verde btn-sm" @onclick="() => Liquidar(cliente)">Pagar</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@if (MostrarModal)
+{
+    <div class="modal-fundo" @onclick="FecharModal">
+        <div class="modal-caixa" @onclick:stopPropagation="true">
+            <div class="modal-cabecalho">
+                <span>@(Editando?.Id > 0 ? "Editar cliente" : "Novo cliente")</span>
+                <button class="fechar-modal" @onclick="FecharModal">×</button>
+            </div>
+            <div class="modal-corpo">
+                <div class="row-form">
+                    <div style="grid-column: span 2">
+                        <label class="form-label">Nome *</label>
+                        <input class="form-control" @bind="Formulario.Nome" />
+                    </div>
+                    <div>
+                        <label class="form-label">CPF/CNPJ</label>
+                        <input class="form-control" @bind="Formulario.CpfCnpj" />
+                    </div>
+                    <div>
+                        <label class="form-label">Telefone</label>
+                        <input class="form-control" @bind="Formulario.Telefone" />
+                    </div>
+                    <div>
+                        <label class="form-label">Email</label>
+                        <input class="form-control" @bind="Formulario.Email" />
+                    </div>
+                    <div>
+                        <label class="form-label">Endereço</label>
+                        <input class="form-control" @bind="Formulario.Endereco" />
+                    </div>
+                    <div>
+                        <label class="form-label">Limite de crédito (R$)</label>
+                        <input class="form-control" type="number" step="0.01" min="0" @bind="Formulario.LimiteCredito" />
+                        <div class="form-hint">Zero = sem limite para fiado.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-rodape">
+                <button class="btn-banca btn-secundario" @onclick="FecharModal">Cancelar</button>
+                <button class="btn-banca btn-primario" @onclick="SalvarAsync" disabled="@Processando">Salvar</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ClienteDto> ListaClientes = new();
+    private string Busca = string.Empty;
+    private bool ApenasAtivos = true;
+
+    private bool MostrarModal;
+    private ClienteInput Formulario = new();
+    private ClienteDto? Editando;
+    private bool Processando;
+    private string? Mensagem;
+    private bool Sucesso;
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        var url = $"api/clientes?apenasAtivos={ApenasAtivos.ToString().ToLowerInvariant()}";
+        if (!string.IsNullOrWhiteSpace(Busca)) url += $"&busca={Uri.EscapeDataString(Busca)}";
+
+        var resultado = await Api.GetListAsync<ClienteDto>(url);
+        if (resultado.Sucesso && resultado.Dados is not null) ListaClientes = resultado.Dados;
+    }
+
+    private void AbrirNovo()
+    {
+        Editando = null;
+        Formulario = new ClienteInput();
+        MostrarModal = true;
+    }
+
+    private void AbrirEdicao(ClienteDto cliente)
+    {
+        Editando = cliente;
+        Formulario = new ClienteInput
+        {
+            Nome = cliente.Nome,
+            CpfCnpj = cliente.CpfCnpj,
+            Telefone = cliente.Telefone,
+            Email = cliente.Email,
+            Endereco = cliente.Endereco,
+            LimiteCredito = cliente.LimiteCredito,
+            Ativo = cliente.Ativo
+        };
+        MostrarModal = true;
+    }
+
+    private void FecharModal() => MostrarModal = false;
+
+    private async Task SalvarAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Formulario.Nome))
+        {
+            Mostrar("O nome do cliente é obrigatório.", false);
+            return;
+        }
+
+        Processando = true;
+        var resultado = Editando is null
+            ? await Api.PostAsync<ClienteDto, ClienteInput>("api/clientes", Formulario)
+            : await Api.PutAsync<ClienteDto, ClienteInput>($"api/clientes/{Editando.Id}", Formulario);
+        Processando = false;
+
+        if (resultado.Sucesso)
+        {
+            Mostrar(Editando is null ? "Cliente cadastrado com sucesso." : "Cliente atualizado.", true);
+            MostrarModal = false;
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private async Task Liquidar(ClienteDto cliente)
+    {
+        var resultado = await Api.PostAsync($"api/clientes/{cliente.Id}/liquidar", new LiquidarDividaRequest { Valor = cliente.SaldoDevedor });
+        if (resultado.Sucesso)
+        {
+            Mostrar($"Pagamento de {Valor(cliente.SaldoDevedor)} registrado para {cliente.Nome}.", true);
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private void Mostrar(string mensagem, bool sucesso)
+    {
+        Mensagem = mensagem;
+        Sucesso = sucesso;
+    }
+
+    private static string Valor(decimal valor) => valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+}

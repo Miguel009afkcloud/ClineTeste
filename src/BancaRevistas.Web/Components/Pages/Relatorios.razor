@@ -1,0 +1,162 @@
+@page "/relatorios"
+@inject BancaApiClient Api
+
+<PageTitle>Relatórios - Banca de Revistas</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(Mensagem))
+{
+    <div class="alerta alerta-erro"><span>⚠</span><span>@Mensagem</span></div>
+}
+
+<div class="card-banca mb-4">
+    <div class="card-header-banca"><span>📊 Relatório de vendas por período</span></div>
+    <div class="card-body-banca">
+        <div class="row-form">
+            <div>
+                <label class="form-label">Data inicial</label>
+                <input class="form-control" type="date" @bind="DataInicio" />
+            </div>
+            <div>
+                <label class="form-label">Data final</label>
+                <input class="form-control" type="date" @bind="DataFim" />
+            </div>
+            <div style="display:flex;align-items:flex-end">
+                <button class="btn-banca btn-primario w-100" @onclick="CarregarAsync" disabled="@Carregando">Gerar relatório</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Relatorio is not null)
+{
+    <div class="grid-kpi">
+        <div class="kpi">
+            <div class="kpi-icone bg-laranja">💵</div>
+            <div>
+                <div class="kpi-valor">@Valor(Relatorio.TotalFaturamento)</div>
+                <div class="kpi-rotulo">Faturamento no período</div>
+            </div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-icone bg-azul">🧾</div>
+            <div>
+                <div class="kpi-valor">@Relatorio.TotalVendas</div>
+                <div class="kpi-rotulo">Vendas realizadas</div>
+            </div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-icone bg-verde">🎫</div>
+            <div>
+                <div class="kpi-valor">@Valor(Relatorio.TicketMedio)</div>
+                <div class="kpi-rotulo">Ticket médio</div>
+            </div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-icone bg-ambar">🏷️</div>
+            <div>
+                <div class="kpi-valor">@Valor(Relatorio.TotalDescontos)</div>
+                <div class="kpi-rotulo">Descontos concedidos</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pdv-grid">
+        <div class="card-banca">
+            <div class="card-header-banca"><span>🏆 Publicações mais vendidas no período</span></div>
+            <div class="card-body-banca">
+                @if (Relatorio.TopPublicacoes.Count == 0)
+                {
+                    <div class="vazio"><p>Sem vendas no período selecionado.</p></div>
+                }
+                else
+                {
+                    <div class="tabela-wrapper">
+                        <table class="tabela-banca">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Publicação</th>
+                                    <th class="text-end">Quantidade</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var (item, indice) in Relatorio.TopPublicacoes.Select((t, i) => (t, i)))
+                                {
+                                    <tr>
+                                        <td>@(indice + 1)</td>
+                                        <td>@item.Titulo</td>
+                                        <td class="text-end">@item.Quantidade</td>
+                                        <td class="text-end text-dinheiro">@Valor(item.Total)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="card-banca">
+            <div class="card-header-banca"><span>💳 Por forma de pagamento</span></div>
+            <div class="card-body-banca">
+                @if (Relatorio.PorFormaPagamento.Count == 0)
+                {
+                    <div class="vazio"><p>Sem dados no período.</p></div>
+                }
+                else
+                {
+                    <div class="tabela-wrapper">
+                        <table class="tabela-banca">
+                            <thead>
+                                <tr>
+                                    <th>Forma</th>
+                                    <th class="text-end">Qtd.</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var forma in Relatorio.PorFormaPagamento)
+                                {
+                                    <tr>
+                                        <td>@forma.FormaPagamento</td>
+                                        <td class="text-end">@forma.Quantidade</td>
+                                        <td class="text-end text-dinheiro">@Valor(forma.Total)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private RelatorioVendasDto? Relatorio;
+    private DateTime DataInicio = DateTime.Now.AddDays(-29);
+    private DateTime DataFim = DateTime.Now;
+    private bool Carregando;
+    private string? Mensagem;
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        Carregando = true;
+        Mensagem = null;
+
+        var url = $"api/relatorios/vendas?inicio={DataInicio:yyyy-MM-dd}&fim={DataFim:yyyy-MM-ddT23:59:59}";
+        var resultado = await Api.GetAsync<RelatorioVendasDto>(url);
+
+        if (resultado.Sucesso)
+            Relatorio = resultado.Dados;
+        else
+            Mensagem = resultado.Mensagem;
+
+        Carregando = false;
+    }
+
+    private static string Valor(decimal valor) => valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+}

@@ -1,0 +1,191 @@
+@page "/compras"
+@inject BancaApiClient Api
+@inject AuthService Auth
+
+<PageTitle>ListaCompras - Banca de Revistas</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(Mensagem))
+{
+    <div class="alerta @(Sucesso ? "alerta-sucesso" : "alerta-erro")">
+        <span>@(Sucesso ? "✓" : "⚠")</span><span>@Mensagem</span>
+        <button class="btn-banca btn-secundario btn-sm ms-auto" @onclick="() => Mensagem = null">Fechar</button>
+    </div>
+}
+
+<div class="pdv-grid">
+    <div class="card-banca">
+        <div class="card-header-banca"><span>📦 ListaCompras de reposição</span></div>
+        <div class="card-body-banca">
+            @if (ListaCompras.Count == 0)
+            {
+                <div class="vazio"><div class="vazio-icone">📭</div><p>Nenhuma compra registrada.</p></div>
+            }
+            else
+            {
+                <div class="tabela-wrapper">
+                    <table class="tabela-banca">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Fornecedor</th>
+                                <th class="text-end">Itens</th>
+                                <th class="text-end">Total</th>
+                                <th>Situação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var compra in ListaCompras)
+                            {
+                                <tr>
+                                    <td class="text-pequeno">@compra.DataCompra.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                    <td>@compra.Fornecedor</td>
+                                    <td class="text-end">@compra.TotalItens</td>
+                                    <td class="text-end text-dinheiro">@Valor(compra.ValorTotal)</td>
+                                    <td><span class="selo selo-verde">@compra.Status</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (EhEstoquista)
+    {
+        <div class="card-banca">
+            <div class="card-header-banca"><span>🛒 Nova compra</span></div>
+            <div class="card-body-banca">
+                <div class="mb-3">
+                    <label class="form-label">Fornecedor *</label>
+                    <select class="form-select" @bind="FornecedorId">
+                        <option value="0">Selecione...</option>
+                        @foreach (var fornecedor in Fornecedores)
+                        {
+                            <option value="@fornecedor.Id">@fornecedor.RazaoSocial</option>
+                        }
+                    </select>
+                </div>
+
+                <label class="form-label">Itens da compra</label>
+                @foreach (var item in ItensCompra)
+                {
+                    <div class="cupom-item">
+                        <div class="cupom-info">
+                            <select class="form-select" @bind="item.PublicacaoId">
+                                <option value="0">Selecione a publicação...</option>
+                                @foreach (var publicacao in Publicacoes)
+                                {
+                                    <option value="@publicacao.Id">@publicacao.Titulo</option>
+                                }
+                            </select>
+                        </div>
+                        <input class="form-control" style="width:80px" type="number" min="1" @bind="item.Quantidade" />
+                        <input class="form-control" style="width:100px" type="number" step="0.01" min="0" @bind="item.PrecoUnitario" />
+                        <button class="btn-banca btn-perigo btn-sm" @onclick="() => RemoverItem(item)">✕</button>
+                    </div>
+                }
+
+                <button class="btn-banca btn-secundario btn-sm mt-2" @onclick="AdicionarItem">+ Adicionar item</button>
+
+                <div class="mt-3">
+                    <label class="form-label">Observações</label>
+                    <input class="form-control" @bind="Observacoes" placeholder="Ex.: NF 12345" />
+                </div>
+
+                <div class="total-destaque mt-3 mb-3">
+                    <div>
+                        <div class="rotulo">Total da compra</div>
+                        <div class="valor">@Valor(TotalCompra)</div>
+                    </div>
+                </div>
+
+                <button class="btn-banca btn-primario w-100" @onclick="RegistrarAsync" disabled="@Processando">Registrar compra</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<CompraDto> ListaCompras = new();
+    private List<FornecedorDto> Fornecedores = new();
+    private List<PublicacaoDto> Publicacoes = new();
+    private List<ItemCompraInput> ItensCompra = new();
+
+    private int FornecedorId;
+    private string Observacoes = string.Empty;
+    private bool Processando;
+    private string? Mensagem;
+    private bool Sucesso;
+
+    private decimal TotalCompra => ItensCompra.Sum(i => i.Quantidade * i.PrecoUnitario - i.Desconto);
+    private bool EhEstoquista => Auth.Usuario?.Permissao is PermissaoUsuario.Administrador or PermissaoUsuario.Estoquista;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarAsync();
+        var forn = await Api.GetListAsync<FornecedorDto>("api/fornecedores");
+        if (forn.Sucesso && forn.Dados is not null) Fornecedores = forn.Dados;
+
+        var pub = await Api.GetListAsync<PublicacaoDto>("api/publicacoes?apenasAtivos=true");
+        if (pub.Sucesso && pub.Dados is not null) Publicacoes = pub.Dados;
+
+        AdicionarItem();
+    }
+
+    private async Task CarregarAsync()
+    {
+        var resultado = await Api.GetListAsync<CompraDto>("api/compras");
+        if (resultado.Sucesso && resultado.Dados is not null) ListaCompras = resultado.Dados;
+    }
+
+    private void AdicionarItem() => ItensCompra.Add(new ItemCompraInput { Quantidade = 1 });
+
+    private void RemoverItem(ItemCompraInput item) => ItensCompra.Remove(item);
+
+    private async Task RegistrarAsync()
+    {
+        if (FornecedorId == 0)
+        {
+            Mostrar("Selecione o fornecedor da compra.", false);
+            return;
+        }
+
+        if (ItensCompra.Any(i => i.PublicacaoId == 0 || i.Quantidade <= 0))
+        {
+            Mostrar("Preencha todos os itens da compra.", false);
+            return;
+        }
+
+        Processando = true;
+        var resultado = await Api.PostAsync<CompraDto, CompraInput>("api/compras",
+            new CompraInput
+            {
+                FornecedorId = FornecedorId,
+                Itens = ItensCompra,
+                Observacoes = string.IsNullOrWhiteSpace(Observacoes) ? null : Observacoes
+            });
+        Processando = false;
+
+        if (resultado.Sucesso)
+        {
+            Mostrar("Compra registrada e estoque atualizado.", true);
+            ItensCompra.Clear();
+            AdicionarItem();
+            Observacoes = string.Empty;
+            await CarregarAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private void Mostrar(string mensagem, bool sucesso)
+    {
+        Mensagem = mensagem;
+        Sucesso = sucesso;
+    }
+
+    private static string Valor(decimal valor) => valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+}

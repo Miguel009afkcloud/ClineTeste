@@ -1,23 +1,92 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@inject AuthService Auth
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+<div class="app-shell @(MenuAberto ? "menu-aberto" : string.Empty)">
+    <aside class="sidebar">
+        <div class="brand">
+            <span class="brand-mark">BR</span>
+            <div class="brand-text">
+                <strong>Banca de Revistas</strong>
+                <small>Gestão do balcão</small>
+            </div>
         </div>
 
-        <article class="content px-4">
+        <NavMenu />
+
+        @if (Auth.Usuario is not null)
+        {
+            <div class="sidebar-user">
+                <div class="avatar">@Iniciais(Auth.Usuario.Nome)</div>
+                <div class="user-info">
+                    <strong>@Auth.Usuario.Nome</strong>
+                    <small>@Auth.Usuario.Permissao</small>
+                </div>
+            </div>
+            <button class="btn-logout" @onclick="SairAsync" title="Sair do sistema">
+                <span class="icon">⏻</span> Sair
+            </button>
+        }
+    </aside>
+
+    <div class="content-area">
+        <header class="topbar">
+            <button class="menu-toggle" @onclick="AlternarMenu" aria-label="Alternar menu">☰</button>
+            <h1 class="page-title">@PaginaAtual</h1>
+            <div class="topbar-right">
+                <span class="relogio">@DateTime.Now.ToString("dd/MM/yyyy HH:mm")</span>
+            </div>
+        </header>
+
+        <main class="content">
             @Body
-        </article>
-    </main>
+        </main>
+    </div>
 </div>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private bool MenuAberto { get; set; }
+    private string PaginaAtual { get; set; } = "Painel";
+
+    protected override void OnInitialized()
+    {
+        var uri = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var caminho = Navigation.Uri.Contains('#') ? Navigation.Uri[(Navigation.Uri.IndexOf('#') + 1)..] : string.Empty;
+
+        PaginaAtual = caminho switch
+        {
+            "" => "Painel",
+            "pdv" => "PDV - Vendas",
+            "publicacoes" => "Publicações",
+            "estoque" => "Estoque",
+            "clientes" => "Clientes",
+            "assinaturas" => "Assinaturas",
+            "caixa" => "Caixa",
+            "compras" => "Compras",
+            "fornecedores" => "Fornecedores",
+            "relatorios" => "Relatórios",
+            "usuarios" => "Usuários",
+            "login" => "Acesso",
+            _ => "Banca de Revistas"
+        };
+    }
+
+    private void AlternarMenu() => MenuAberto = !MenuAberto;
+
+    private async Task SairAsync()
+    {
+        await Auth.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private static string Iniciais(string nome)
+    {
+        if (string.IsNullOrWhiteSpace(nome)) return "?";
+        var partes = nome.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return partes.Length == 1
+            ? partes[0][..1].ToUpperInvariant()
+            : (partes[0][..1] + partes[^1][..1]).ToUpperInvariant();
+    }
+}

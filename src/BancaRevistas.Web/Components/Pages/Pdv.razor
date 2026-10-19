@@ -1,0 +1,411 @@
+@page "/pdv"
+@inject BancaApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>PDV - Banca de Revistas</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(Mensagem))
+{
+    <div class="alerta @(Sucesso ? "alerta-sucesso" : "alerta-erro")">
+        <span>@(Sucesso ? "✓" : "⚠")</span>
+        <span>@Mensagem</span>
+        <button class="btn-banca btn-secundario btn-sm ms-auto" @onclick="() => Mensagem = null">Fechar</button>
+    </div>
+}
+
+@if (!CaixaAberto)
+{
+    <div class="card-banca">
+        <div class="card-header-banca"><span>💰 Caixa fechado</span></div>
+        <div class="card-body-banca">
+            <p class="text-muted-banca">É necessário ter um caixa aberto para registrar vendas.</p>
+            <div class="row-form" style="max-width:420px">
+                <div>
+                    <label class="form-label">Valor inicial do caixa (R$)</label>
+                    <input class="form-control" type="number" step="0.01" min="0" @bind="ValorInicialCaixa" />
+                </div>
+                <div style="display:flex;align-items:flex-end">
+                    <button class="btn-banca btn-primario w-100" @onclick="AbrirCaixaAsync" disabled="@Processando">Abrir caixa</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="pdv-grid">
+        <div>
+            <div class="card-banca mb-4">
+                <div class="card-header-banca">
+                    <span>🔍 Busca de publicações</span>
+                    <span class="text-muted-banca text-pequeno">@Publicacoes.Count item(ns) no catálogo</span>
+                </div>
+                <div class="card-body-banca">
+                    <div class="busca-rapida">
+                        <input class="form-control" placeholder="Digite o título ou o código de barras..."
+                               @bind="TermoBusca" @bind:event="oninput" @bind:after="FiltrarResultados" @onkeydown="AoTeclar" />
+                        @if (Resultados.Count > 0)
+                        {
+                            <div class="resultados">
+                                @foreach (var item in Resultados)
+                                {
+                                    <div class="resultado-item" @onclick="() => AdicionarItem(item)">
+                                        <div>
+                                            <div class="resultado-titulo">@item.Titulo</div>
+                                            <div class="resultado-meta">
+                                                @item.Categoria @(item.Estoque > 0 ? $"- {item.Estoque} em estoque" : "- sem estoque")
+                                                @if (item.EstoqueCritico) { <span class="selo-vermelho" style="margin-left:6px">crítico</span> }
+                                            </div>
+                                        </div>
+                                        <div class="resultado-preco">@Valor(item.Preco)</div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-banca">
+                <div class="card-header-banca">
+                    <span>📰 Catálogo completo</span>
+                    <button class="btn-banca btn-secundario btn-sm" @onclick="RecarregarPublicacoesAsync">Atualizar</button>
+                </div>
+                <div class="card-body-banca">
+                    @if (Publicacoes.Count == 0)
+                    {
+                        <div class="vazio"><div class="vazio-icone">📭</div><p>Nenhuma publicação cadastrada.</p></div>
+                    }
+                    else
+                    {
+                        <div class="tabela-wrapper">
+                            <table class="tabela-banca">
+                                <thead>
+                                    <tr>
+                                        <th>Publicação</th>
+                                        <th>Categoria</th>
+                                        <th class="text-end">Preço</th>
+                                        <th class="text-end">Estoque</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var publicacao in Publicacoes)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@publicacao.Titulo</strong>
+                                                @if (!string.IsNullOrWhiteSpace(publicacao.Autor))
+                                                {
+                                                    <div class="text-muted-banca text-pequeno">@publicacao.Autor</div>
+                                                }
+                                            </td>
+                                            <td><span class="selo selo-cinza">@publicacao.Tipo</span></td>
+                                            <td class="text-end text-dinheiro">@Valor(publicacao.Preco)</td>
+                                            <td class="text-end">
+                                                <span class="selo @(publicacao.Estoque <= 0 ? "selo-vermelho" : publicacao.EstoqueCritico ? "selo-ambar" : "selo-verde")">
+                                                    @publicacao.Estoque
+                                                </span>
+                                            </td>
+                                            <td class="text-end">
+                                                <button class="btn-banca btn-primario btn-sm" @onclick="() => AdicionarItem(publicacao)" disabled="@(publicacao.Estoque <= 0)">+</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="card-banca mb-4">
+                <div class="card-header-banca">
+                    <span>🧾 Cupom</span>
+                    @if (Itens.Count > 0)
+                    {
+                        <button class="btn-banca btn-secundario btn-sm" @onclick="LimparCupom">Limpar</button>
+                    }
+                </div>
+                <div class="card-body-banca">
+                    @if (Itens.Count == 0)
+                    {
+                        <div class="vazio">
+                            <div class="vazio-icone">🛒</div>
+                            <p>O cupom está vazio.</p>
+                            <p class="text-pequeno">Busque uma publicação ao lado para adicioná-la.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var item in Itens)
+                        {
+                            <div class="cupom-item">
+                                <div class="cupom-qtd">@item.Quantidade</div>
+                                <div class="cupom-info">
+                                    <div class="cupom-titulo">@item.Publicacao.Titulo</div>
+                                    <div class="cupom-sub">@Valor(item.PrecoUnitario) cada</div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="text-dinheiro">@Valor(item.Quantidade * item.PrecoUnitario)</div>
+                                    <div class="d-flex gap-2 mt-2" style="justify-content:flex-end">
+                                        <button class="btn-banca btn-secundario btn-sm" @onclick="() => AlterarQuantidade(item, -1)">−</button>
+                                        <button class="btn-banca btn-secundario btn-sm" @onclick="() => AlterarQuantidade(item, 1)">+</button>
+                                        <button class="btn-banca btn-perigo btn-sm" @onclick="() => RemoverItem(item)">✕</button>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="card-banca">
+                <div class="card-header-banca"><span>💳 Pagamento</span></div>
+                <div class="card-body-banca">
+                    <div class="row-form mb-3">
+                        <div>
+                            <label class="form-label">Desconto (R$)</label>
+                            <input class="form-control" type="number" step="0.01" min="0" @bind="Desconto" />
+                        </div>
+                        <div>
+                            <label class="form-label">Cliente (para fiado)</label>
+                            <select class="form-select" @bind="ClienteId">
+                                <option value="">Consumidor não identificado</option>
+                                @foreach (var cliente in Clientes)
+                                {
+                                    <option value="@cliente.Id">@cliente.Nome</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pagamentos mb-3">
+                        @foreach (var forma in FormasPagamento)
+                        {
+                            <button class="pagamento-btn @(FormaPagamento == forma ? "ativo" : string.Empty)" @onclick="() => FormaPagamento = forma">@forma</button>
+                        }
+                    </div>
+
+                    <div class="total-destaque mb-3">
+                        <div>
+                            <div class="rotulo">Total da venda</div>
+                            <div class="valor">@Valor(Total)</div>
+                        </div>
+                        <div class="text-end">
+                            <div class="rotulo">Itens</div>
+                            <div style="font-size:19px;font-weight:600">@TotalQuantidade</div>
+                        </div>
+                    </div>
+
+                    <button class="btn-banca btn-verde w-100" @onclick="FinalizarVendaAsync" disabled="@(Itens.Count == 0 || Processando)">
+                        @if (Processando)
+                        {
+                            <span>Registrando...</span>
+                        }
+                        else
+                        {
+                            <span>✅ Finalizar venda</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly string[] FormasPagamento = { "Dinheiro", "Pix", "CartaoDebito", "CartaoCredito", "Fiado" };
+
+    private List<PublicacaoDto> Publicacoes = new();
+    private List<PublicacaoDto> Resultados = new();
+    private List<ClienteDto> Clientes = new();
+    private List<ItemCupom> Itens = new();
+
+    private string TermoBusca = string.Empty;
+    private string FormaPagamento = "Dinheiro";
+    private decimal Desconto;
+    private int? ClienteId;
+    private decimal ValorInicialCaixa;
+
+    private bool CaixaAberto = true;
+    private bool Processando;
+    private string? Mensagem;
+    private bool Sucesso;
+
+    private decimal Total => Itens.Sum(i => i.Quantidade * i.PrecoUnitario) - Desconto;
+    private int TotalQuantidade => Itens.Sum(i => i.Quantidade);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RecarregarPublicacoesAsync();
+        await RecarregarClientesAsync();
+        await VerificarCaixaAsync();
+    }
+
+    private async Task RecarregarPublicacoesAsync()
+    {
+        var resultado = await Api.GetListAsync<PublicacaoDto>("api/publicacoes?apenasAtivos=true");
+        if (resultado.Sucesso && resultado.Dados is not null)
+            Publicacoes = resultado.Dados;
+    }
+
+    private async Task RecarregarClientesAsync()
+    {
+        var resultado = await Api.GetListAsync<ClienteDto>("api/clientes");
+        if (resultado.Sucesso && resultado.Dados is not null)
+            Clientes = resultado.Dados;
+    }
+
+    private async Task VerificarCaixaAsync()
+    {
+        var resultado = await Api.GetAsync<CaixaDto>("api/caixa/atual");
+        CaixaAberto = resultado.Sucesso && resultado.Dados is not null;
+    }
+
+    private async Task AbrirCaixaAsync()
+    {
+        Processando = true;
+        var resultado = await Api.PostAsync<CaixaDto, AbrirCaixaRequest>("api/caixa/abrir", new AbrirCaixaRequest { ValorInicial = ValorInicialCaixa });
+        Processando = false;
+
+        if (resultado.Sucesso)
+        {
+            CaixaAberto = true;
+            Mostrar("Caixa aberto com sucesso.", true);
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private void AoTeclar(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && Resultados.Count > 0)
+        {
+            AdicionarItem(Resultados[0]);
+            TermoBusca = string.Empty;
+            Resultados.Clear();
+        }
+    }
+
+    /// <summary>Filtra o catálogo conforme o termo digitado, sem chamar a API.</summary>
+    private void FiltrarResultados()
+    {
+        if (string.IsNullOrWhiteSpace(TermoBusca))
+        {
+            Resultados = new List<PublicacaoDto>();
+            return;
+        }
+
+        var termo = TermoBusca.Trim().ToLowerInvariant();
+        Resultados = Publicacoes
+            .Where(p => p.Titulo.ToLowerInvariant().Contains(termo)
+                        || (p.Autor?.ToLowerInvariant().Contains(termo) ?? false)
+                        || (p.CodigoBarras?.Contains(TermoBusca.Trim()) ?? false))
+            .Take(12)
+            .ToList();
+    }
+
+    private void AdicionarItem(PublicacaoDto publicacao)
+    {
+        var existente = Itens.FirstOrDefault(i => i.Publicacao.Id == publicacao.Id);
+        if (existente is not null)
+        {
+            if (existente.Quantidade >= publicacao.Estoque)
+            {
+                Mostrar($"Estoque insuficiente para '{publicacao.Titulo}'.", false);
+                return;
+            }
+
+            existente.Quantidade++;
+        }
+        else
+        {
+            Itens.Add(new ItemCupom { Publicacao = publicacao, Quantidade = 1, PrecoUnitario = publicacao.Preco });
+        }
+
+        TermoBusca = string.Empty;
+        Resultados.Clear();
+    }
+
+    private void AlterarQuantidade(ItemCupom item, int delta)
+    {
+        var nova = item.Quantidade + delta;
+        if (nova <= 0)
+        {
+            Itens.Remove(item);
+            return;
+        }
+
+        if (nova > item.Publicacao.Estoque)
+        {
+            Mostrar($"Estoque insuficiente para '{item.Publicacao.Titulo}'.", false);
+            return;
+        }
+
+        item.Quantidade = nova;
+    }
+
+    private void RemoverItem(ItemCupom item) => Itens.Remove(item);
+
+    private void LimparCupom()
+    {
+        Itens.Clear();
+        Desconto = 0;
+    }
+
+    private async Task FinalizarVendaAsync()
+    {
+        Processando = true;
+        Mensagem = null;
+
+        var entrada = new VendaInput
+        {
+            Itens = Itens.Select(i => new ItemVendaInput
+            {
+                PublicacaoId = i.Publicacao.Id,
+                Quantidade = i.Quantidade,
+                PrecoUnitario = i.PrecoUnitario
+            }).ToList(),
+            FormaPagamento = FormaPagamento,
+            Desconto = Desconto,
+            ClienteId = FormaPagamento == "Fiado" ? ClienteId : null
+        };
+
+        var resultado = await Api.PostAsync<VendaDto, VendaInput>("api/vendas", entrada);
+        Processando = false;
+
+        if (resultado.Sucesso)
+        {
+            var numero = resultado.Dados?.Id ?? 0;
+            Mostrar($"Venda #{numero} registrada com sucesso - {Valor(resultado.Dados?.ValorTotal ?? 0)}.", true);
+            Itens.Clear();
+            Desconto = 0;
+            ClienteId = null;
+            await RecarregarPublicacoesAsync();
+        }
+        else
+        {
+            Mostrar(resultado.Mensagem, false);
+        }
+    }
+
+    private void Mostrar(string mensagem, bool sucesso)
+    {
+        Mensagem = mensagem;
+        Sucesso = sucesso;
+    }
+
+    private static string Valor(decimal valor) => valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+
+    private class ItemCupom
+    {
+        public PublicacaoDto Publicacao { get; set; } = null!;
+        public int Quantidade { get; set; }
+        public decimal PrecoUnitario { get; set; }
+    }
+}

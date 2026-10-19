@@ -1,7 +1,240 @@
-﻿@page "/"
+@page "/"
+@inject BancaApiClient Api
+@inject AuthService Auth
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Painel - Banca de Revistas</PageTitle>
 
-<h1>Hello, world!</h1>
+@if (Carregando)
+{
+    <div class="vazio">
+        <div class="vazio-icone">⏳</div>
+        <p>Carregando indicadores...</p>
+    </div>
+}
+else if (Dashboard is null)
+{
+    <div class="alerta alerta-erro"><span>⚠</span><span>Não foi possível carregar o painel. @Mensagem</span></div>
+}
+else
+{
+    <div class="grid-kpi">
+        <div class="kpi">
+            <div class="kpi-icone bg-laranja">💵</div>
+            <div>
+                <div class="kpi-valor">@Valor(Dashboard.TotalVendasHoje)</div>
+                <div class="kpi-rotulo">Vendas de hoje (@Dashboard.VendasHoje)</div>
+            </div>
+        </div>
 
-Welcome to your new app.
+        <div class="kpi">
+            <div class="kpi-icone bg-azul">🧾</div>
+            <div>
+                <div class="kpi-valor">@Valor(Dashboard.TicketMedio)</div>
+                <div class="kpi-rotulo">Ticket médio</div>
+            </div>
+        </div>
+
+        <div class="kpi">
+            <div class="kpi-icone bg-verde">📅</div>
+            <div>
+                <div class="kpi-valor">@Valor(Dashboard.TotalVendasMes)</div>
+                <div class="kpi-rotulo">Faturamento do mês</div>
+            </div>
+        </div>
+
+        <div class="kpi">
+            <div class="kpi-icone bg-arroba">📬</div>
+            <div>
+                <div class="kpi-valor">@Dashboard.AssinaturasAtivas</div>
+                <div class="kpi-rotulo">Assinaturas ativas</div>
+            </div>
+        </div>
+
+        <div class="kpi">
+            <div class="kpi-icone @(Dashboard.EstoqueCritico > 0 ? "bg-vermelho" : "bg-ambar")">📦</div>
+            <div>
+                <div class="kpi-valor">@Dashboard.EstoqueCritico</div>
+                <div class="kpi-rotulo">Itens com estoque crítico</div>
+            </div>
+        </div>
+
+        <div class="kpi">
+            <div class="kpi-icone bg-arroba">💳</div>
+            <div>
+                <div class="kpi-valor">@Valor(Dashboard.SaldoDevedorTotal)</div>
+                <div class="kpi-rotulo">Carteira de fiados</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pdv-grid">
+        <div>
+            <div class="card-banca mb-4">
+                <div class="card-header-banca">
+                    <span>📈 Vendas nos últimos 30 dias</span>
+                    <span class="text-muted-banca text-pequeno">@Dashboard.VendasPorDia.Count dia(s) com movimento</span>
+                </div>
+                <div class="card-body-banca">
+                    @if (Dashboard.VendasPorDia.Count == 0)
+                    {
+                        <div class="vazio">
+                            <div class="vazio-icone">📭</div>
+                            <p>Nenhuma venda registrada no período.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        var maximo = Dashboard.VendasPorDia.Max(d => (double)d.Total);
+                        @foreach (var dia in Dashboard.VendasPorDia)
+                        {
+                            var percentual = maximo > 0 ? (dia.Total / (decimal)maximo * 100) : 0;
+                            <div class="barra-linha">
+                                <div class="barra-rotulo">@dia.Dia.ToString("dd/MM")</div>
+                                <div class="barra-trilho">
+                                    <div class="barra-preenchida" style="width: @percentual.ToString("0.##")%"></div>
+                                </div>
+                                <div class="barra-valor">@Valor(dia.Total)</div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="card-banca">
+                <div class="card-header-banca"><span>🏆 Publicações mais vendidas</span></div>
+                <div class="card-body-banca">
+                    @if (Dashboard.TopPublicacoes.Count == 0)
+                    {
+                        <div class="vazio">
+                            <div class="vazio-icone">🥇</div>
+                            <p>Ainda não há vendas registradas.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="tabela-wrapper">
+                            <table class="tabela-banca">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Publicação</th>
+                                        <th class="text-end">Qtd. vendida</th>
+                                        <th class="text-end">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var (top, indice) in Dashboard.TopPublicacoes.Select((t, i) => (t, i)))
+                                    {
+                                        <tr>
+                                            <td>@(indice + 1)</td>
+                                            <td>@top.Titulo</td>
+                                            <td class="text-end">@top.Quantidade</td>
+                                            <td class="text-end text-dinheiro">@Valor(top.Total)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="card-banca mb-4">
+                <div class="card-header-banca"><span>💳 Vendas por forma de pagamento</span></div>
+                <div class="card-body-banca">
+                    @if (Dashboard.VendasPorFormaPagamento.Count == 0)
+                    {
+                        <div class="vazio"><p>Sem dados no período.</p></div>
+                    }
+                    else
+                    {
+                        var maximo = Dashboard.VendasPorFormaPagamento.Max(f => (double)f.Total);
+                        @foreach (var forma in Dashboard.VendasPorFormaPagamento)
+                        {
+                            var percentual = maximo > 0 ? (forma.Total / (decimal)maximo * 100) : 0;
+                            <div class="barra-linha">
+                                <div class="barra-rotulo">@forma.FormaPagamento</div>
+                                <div class="barra-trilho">
+                                    <div class="barra-preenchida" style="width: @percentual.ToString("0.##")%"></div>
+                                </div>
+                                <div class="barra-valor">@Valor(forma.Total)</div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="card-banca mb-4">
+                <div class="card-header-banca"><span>📬 Assinaturas por situação</span></div>
+                <div class="card-body-banca">
+                    @if (Dashboard.AssinaturasPorStatus.Count == 0)
+                    {
+                        <div class="vazio"><p>Nenhuma assinatura cadastrada.</p></div>
+                    }
+                    else
+                    {
+                        @foreach (var item in Dashboard.AssinaturasPorStatus)
+                        {
+                            <div class="d-flex align-items-center justify-content-between" style="padding:7px 0;border-bottom:1px solid #f0f2f5">
+                                <span class="selo @CorStatus(item.Status)">@item.Status</span>
+                                <strong>@item.Quantidade</strong>
+                            </div>
+                        }
+                        <div class="d-flex align-items-center justify-content-between mt-3">
+                            <span class="text-muted-banca text-pequeno">Receita mensal de assinaturas</span>
+                            <strong class="text-dinheiro">@Valor(Dashboard.ReceitaAssinaturas)</strong>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card-banca">
+                <div class="card-header-banca"><span>📦 Situação do estoque</span></div>
+                <div class="card-body-banca">
+                    <div class="d-flex align-items-center justify-content-between" style="padding:7px 0">
+                        <span class="text-muted-banca">Publicações no catálogo</span>
+                        <strong>@Dashboard.TotalPublicacoes</strong>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between" style="padding:7px 0;border-bottom:1px solid #f0f2f5">
+                        <span class="text-muted-banca">Publicações ativas</span>
+                        <strong>@Dashboard.PublicacoesAtivas</strong>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between" style="padding:7px 0">
+                        <span class="text-muted-banca">Estoque crítico</span>
+                        <strong style="color:@(Dashboard.EstoqueCritico > 0 ? "var(--br-vermelho)" : "var(--br-verde)")">@Dashboard.EstoqueCritico</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardDto? Dashboard;
+    private bool Carregando = true;
+    private string Mensagem = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultado = await Api.GetAsync<DashboardDto>("api/relatorios/dashboard");
+        if (resultado.Sucesso)
+            Dashboard = resultado.Dados;
+        else
+            Mensagem = resultado.Mensagem;
+
+        Carregando = false;
+    }
+
+    private static string Valor(decimal valor) => valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+
+    private static string CorStatus(string status) => status switch
+    {
+        "Ativa" => "selo-verde",
+        "Pausada" => "selo-ambar",
+        "Cancelada" => "selo-vermelho",
+        "Expirada" => "selo-cinza",
+        _ => "selo-azul"
+    };
+}

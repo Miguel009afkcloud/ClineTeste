@@ -254,6 +254,7 @@ public record AssinaturaDto(
     int PublicacaoId,
     string? Publicacao,
     DateTime DataInicio,
+    DateTime? DataFim,
     DateTime ProximaEntrega,
     decimal ValorMensal,
     string Periodicidade,

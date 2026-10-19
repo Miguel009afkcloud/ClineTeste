@@ -65,7 +65,7 @@ public class AssinaturaService
         return await query
             .OrderByDescending(a => a.CriadoEm)
             .Select(a => new AssinaturaDto(a.Id, a.ClienteId, a.Cliente!.Nome, a.PublicacaoId, a.Publicacao!.Titulo,
-                a.DataInicio, a.ProximaEntrega, a.ValorMensal, a.Periodicidade, a.Status))
+                a.DataInicio, a.DataFim, a.ProximaEntrega, a.ValorMensal, a.Periodicidade, a.Status))
             .ToListAsync();
     }
 
@@ -76,7 +76,7 @@ public class AssinaturaService
             .FirstOrDefaultAsync(x => x.Id == id);
         if (a == null) return null;
         return new AssinaturaDto(a.Id, a.ClienteId, a.Cliente?.Nome, a.PublicacaoId, a.Publicacao?.Titulo,
-            a.DataInicio, a.ProximaEntrega, a.ValorMensal, a.Periodicidade, a.Status);
+            a.DataInicio, a.DataFim, a.ProximaEntrega, a.ValorMensal, a.Periodicidade, a.Status);
     }
 
     /// <summary>Altera a situação da assinatura (ativa, pausada, cancelada, expirada).</summary>

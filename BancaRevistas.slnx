@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BancaRevistas.API/BancaRevistas.API.csproj" />
+    <Project Path="src/BancaRevistas.Domain/BancaRevistas.Domain.csproj" />
+    <Project Path="src/BancaRevistas.Infrastructure/BancaRevistas.Infrastructure.csproj" />
+    <Project Path="src/BancaRevistas.Web/BancaRevistas.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BancaRevistas.Tests/BancaRevistas.Tests.csproj" />
+  </Folder>
+</Solution>

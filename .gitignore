@@ -1,0 +1,25 @@
+# Build
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+
+# Banco de dados local
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+
+# Logs
+logs/
+*.log

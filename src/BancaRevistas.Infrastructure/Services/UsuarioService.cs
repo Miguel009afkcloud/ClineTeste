@@ -37,7 +37,7 @@ public class UsuarioService
     public async Task<Usuario> CriarAsync(CriarUsuarioRequest request)
     {
         if (await _context.Usuarios.AnyAsync(u => u.Email.ToLower() == request.Email.ToLower()))
-            throw new InvalidOperationException("Já existe um usuário cadastrado com este e-mail.");
+            throw new RegraDeNegocioException("Já existe um usuário cadastrado com este e-mail.");
 
         var usuario = new Usuario
         {

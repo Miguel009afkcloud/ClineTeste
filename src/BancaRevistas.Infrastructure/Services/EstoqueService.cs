@@ -22,13 +22,13 @@ public class EstoqueService
     public async Task<bool> AjustarAsync(int publicacaoId, int quantidade, string motivo, bool somar, int? usuarioId)
     {
         if (quantidade <= 0)
-            throw new ArgumentException("A quantidade deve ser maior que zero.", nameof(quantidade));
+            throw new RegraDeNegocioException("A quantidade deve ser maior que zero.");
 
         var publicacao = await _context.Publicacoes.FindAsync(publicacaoId);
         if (publicacao == null) return false;
 
         if (!somar && publicacao.Estoque < quantidade)
-            throw new InvalidOperationException($"Estoque insuficiente para '{publicacao.Titulo}'.");
+            throw new RegraDeNegocioException($"Estoque insuficiente para '{publicacao.Titulo}'.");
 
         publicacao.Estoque = somar ? publicacao.Estoque + quantidade : publicacao.Estoque - quantidade;
 
@@ -52,13 +52,13 @@ public class EstoqueService
     public async Task<bool> RegistrarPerdaAsync(int publicacaoId, int quantidade, string motivo, int? usuarioId)
     {
         if (quantidade <= 0)
-            throw new ArgumentException("A quantidade deve ser maior que zero.", nameof(quantidade));
+            throw new RegraDeNegocioException("A quantidade deve ser maior que zero.");
 
         var publicacao = await _context.Publicacoes.FindAsync(publicacaoId);
         if (publicacao == null) return false;
 
         if (publicacao.Estoque < quantidade)
-            throw new InvalidOperationException($"Estoque insuficiente para '{publicacao.Titulo}'.");
+            throw new RegraDeNegocioException($"Estoque insuficiente para '{publicacao.Titulo}'.");
 
         publicacao.Estoque -= quantidade;
         _context.MovimentacoesEstoque.Add(new MovimentacaoEstoque

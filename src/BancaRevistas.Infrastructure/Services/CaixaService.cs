@@ -22,7 +22,7 @@ public class CaixaService
     public async Task<CaixaDto> AbrirAsync(AbrirCaixaRequest request, int usuarioId)
     {
         if (await ObterAbertoAsync() != null)
-            throw new InvalidOperationException("Já existe um caixa aberto. Feche o caixa atual antes de abrir outro.");
+            throw new RegraDeNegocioException("Já existe um caixa aberto. Feche o caixa atual antes de abrir outro.");
 
         var caixa = new Caixa
         {
@@ -102,7 +102,7 @@ public class CaixaService
     public async Task<bool> RegistrarSangriaAsync(int id, decimal valor, string? motivo)
     {
         if (valor <= 0)
-            throw new ArgumentException("O valor da sangria deve ser maior que zero.", nameof(valor));
+            throw new RegraDeNegocioException("O valor da sangria deve ser maior que zero.");
 
         var caixa = await _context.Caixas.FindAsync(id);
         if (caixa == null || caixa.Status != nameof(StatusCaixa.Aberto)) return false;

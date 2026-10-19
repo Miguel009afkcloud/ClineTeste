@@ -47,18 +47,29 @@ public class RelatorioService
             .AsNoTracking()
             .Where(v => v.DataVenda >= inicio30 && v.Status == nameof(StatusVenda.Concluida))
             .GroupBy(v => v.DataVenda.Date)
+            .OrderBy(g => g.Key)
             .Select(g => new VendaPorDia(g.Key, g.Count(), g.Sum(v => v.ValorTotal)))
-            .OrderBy(x => x.Dia)
             .ToListAsync();
 
-        var top = await _context.ItensVendas
+        // O agrupamento por publicação com ordenação sobre o resultado
+        // projetado não é traduzível pelo provedor SQL, por isso os itens
+        // elegíveis são materializados e agregados em memória.
+        var itensTop = await _context.ItensVendas
             .AsNoTracking()
             .Where(i => i.Venda!.Status == nameof(StatusVenda.Concluida) && i.Venda.DataVenda >= inicio30)
-            .GroupBy(i => new { i.PublicacaoId, i.Publicacao!.Titulo })
-            .Select(g => new TopPublicacao(g.Key.PublicacaoId, g.Key.Titulo, g.Sum(i => i.Quantidade), g.Sum(i => i.Subtotal)))
+            .Select(i => new { i.PublicacaoId, i.Publicacao!.Titulo, i.Quantidade, i.PrecoUnitario, i.Desconto })
+            .ToListAsync();
+
+        var top = itensTop
+            .GroupBy(i => new { i.PublicacaoId, i.Titulo })
+            .Select(g => new TopPublicacao(
+                g.Key.PublicacaoId,
+                g.Key.Titulo,
+                g.Sum(i => i.Quantidade),
+                g.Sum(i => i.Quantidade * i.PrecoUnitario - i.Desconto)))
             .OrderByDescending(g => g.Quantidade)
             .Take(10)
-            .ToListAsync();
+            .ToList();
 
         var totalPublicacoes = await _context.Publicacoes.CountAsync();
         var ativas = await _context.Publicacoes.CountAsync(p => p.Ativo);
@@ -111,14 +122,25 @@ public class RelatorioService
             .OrderByDescending(g => g.Total)
             .ToList();
 
-        var top = await _context.ItensVendas
+        // Mesma estratégia do dashboard: materializa os itens e agrega em
+        // memória, pois a ordenação sobre o resultado projetado não é
+        // traduzível pelo provedor SQL.
+        var itensTop = await _context.ItensVendas
             .AsNoTracking()
             .Where(i => i.Venda!.DataVenda >= inicio && i.Venda.DataVenda <= fim && i.Venda.Status == nameof(StatusVenda.Concluida))
-            .GroupBy(i => new { i.PublicacaoId, i.Publicacao!.Titulo })
-            .Select(g => new TopPublicacao(g.Key.PublicacaoId, g.Key.Titulo, g.Sum(i => i.Quantidade), g.Sum(i => i.Subtotal)))
+            .Select(i => new { i.PublicacaoId, i.Publicacao!.Titulo, i.Quantidade, i.PrecoUnitario, i.Desconto })
+            .ToListAsync();
+
+        var top = itensTop
+            .GroupBy(i => new { i.PublicacaoId, i.Titulo })
+            .Select(g => new TopPublicacao(
+                g.Key.PublicacaoId,
+                g.Key.Titulo,
+                g.Sum(i => i.Quantidade),
+                g.Sum(i => i.Quantidade * i.PrecoUnitario - i.Desconto)))
             .OrderByDescending(g => g.Quantidade)
             .Take(15)
-            .ToListAsync();
+            .ToList();
 
         return new RelatorioVendasDto(
             inicio, fim, vendas.Count, total,

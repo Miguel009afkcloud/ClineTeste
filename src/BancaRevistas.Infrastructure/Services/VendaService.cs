@@ -32,42 +32,42 @@ public class VendaService
     public async Task<VendaDto> RegistrarAsync(VendaInput input, int usuarioId)
     {
         if (input.Itens == null || !input.Itens.Any())
-            throw new InvalidOperationException("A venda deve conter pelo menos um item.");
+            throw new RegraDeNegocioException("A venda deve conter pelo menos um item.");
 
         if (string.IsNullOrWhiteSpace(input.FormaPagamento))
-            throw new InvalidOperationException("Selecione uma forma de pagamento.");
+            throw new RegraDeNegocioException("Selecione uma forma de pagamento.");
 
         var caixa = await _caixaService.ObterAbertoAsync()
-                    ?? throw new InvalidOperationException("Nenhum caixa aberto. Abra o caixa antes de registrar vendas.");
+                    ?? throw new RegraDeNegocioException("Nenhum caixa aberto. Abra o caixa antes de registrar vendas.");
 
         // 0.1 Venda fiada exige cliente e respeita limite de crédito
         bool fiado = input.FormaPagamento.Equals(nameof(FormaPagamento.Fiado), StringComparison.OrdinalIgnoreCase);
         if (fiado)
         {
             if (!input.ClienteId.HasValue)
-                throw new InvalidOperationException("Venda fiada exige um cliente selecionado.");
+                throw new RegraDeNegocioException("Venda fiada exige um cliente selecionado.");
 
             var cliente = await _context.Clientes.FindAsync(input.ClienteId.Value);
             if (cliente == null || !cliente.Ativo)
-                throw new InvalidOperationException("Cliente informado não está ativo.");
+                throw new RegraDeNegocioException("Cliente informado não está ativo.");
 
             decimal total = input.Itens.Sum(i => i.Quantidade * i.PrecoUnitario - i.Desconto) - input.Desconto;
             if (cliente.LimiteCredito > 0 && cliente.SaldoDevedor + total > cliente.LimiteCredito)
-                throw new InvalidOperationException($"Limite de crédito do cliente excedido. Saldo atual: {cliente.SaldoDevedor:C2}.");
+                throw new RegraDeNegocioException($"Limite de crédito do cliente excedido. Saldo atual: {cliente.SaldoDevedor:C2}.");
         }
 
         var totalVenda = input.Itens.Sum(i => i.Quantidade * i.PrecoUnitario - i.Desconto) - input.Desconto;
         if (totalVenda < 0)
-            throw new InvalidOperationException("O valor total da venda não pode ser negativo.");
+            throw new RegraDeNegocioException("O valor total da venda não pode ser negativo.");
 
         // 1. Validar estoque antes de qualquer gravação
         foreach (var item in input.Itens)
         {
             var publicacao = await _context.Publicacoes.FindAsync(item.PublicacaoId);
             if (publicacao == null)
-                throw new InvalidOperationException($"Publicação ID {item.PublicacaoId} não encontrada.");
+                throw new RegraDeNegocioException($"Publicação ID {item.PublicacaoId} não encontrada.");
             if (publicacao.Estoque < item.Quantidade)
-                throw new InvalidOperationException($"Estoque insuficiente para '{publicacao.Titulo}'. Disponível: {publicacao.Estoque}.");
+                throw new RegraDeNegocioException($"Estoque insuficiente para '{publicacao.Titulo}'. Disponível: {publicacao.Estoque}.");
         }
 
         using var transaction = await _context.Database.BeginTransactionAsync();

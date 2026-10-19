@@ -24,14 +24,14 @@ public class AssinaturaService
     public async Task<AssinaturaDto> CriarAsync(AssinaturaInput input, int usuarioId)
     {
         var cliente = await _context.Clientes.FindAsync(input.ClienteId)
-            ?? throw new InvalidOperationException("Cliente não encontrado.");
+            ?? throw new RegraDeNegocioException("Cliente não encontrado.");
         if (!cliente.Ativo)
-            throw new InvalidOperationException("Cliente não está ativo.");
+            throw new RegraDeNegocioException("Cliente não está ativo.");
 
         var publicacao = await _context.Publicacoes.FindAsync(input.PublicacaoId)
-            ?? throw new InvalidOperationException("Publicação não encontrada.");
+            ?? throw new RegraDeNegocioException("Publicação não encontrada.");
         if (!publicacao.Ativo)
-            throw new InvalidOperationException("Publicação não está ativa.");
+            throw new RegraDeNegocioException("Publicação não está ativa.");
 
         var inicio = input.DataInicio ?? DateTime.UtcNow;
         var assinatura = new Assinatura

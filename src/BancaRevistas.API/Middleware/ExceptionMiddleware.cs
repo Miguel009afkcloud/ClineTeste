@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using BancaRevistas.Domain.Entities;
 
 namespace BancaRevistas.API.Middleware;
 
@@ -28,10 +29,12 @@ public class ExceptionMiddleware
         {
             _logger.LogError(ex, "Erro não tratado em {Path}", context.Request.Path);
 
+            // Apenas as violações de regra de negócio têm a mensagem
+            // exposta ao usuário; erros técnicos recebem uma mensagem
+            // genérica para não vazar detalhes de implementação.
             var status = ex switch
             {
-                InvalidOperationException => HttpStatusCode.BadRequest,
-                ArgumentException => HttpStatusCode.BadRequest,
+                RegraDeNegocioException => HttpStatusCode.BadRequest,
                 KeyNotFoundException => HttpStatusCode.NotFound,
                 UnauthorizedAccessException => HttpStatusCode.Unauthorized,
                 _ => HttpStatusCode.InternalServerError
@@ -42,7 +45,7 @@ public class ExceptionMiddleware
 
             var payload = new
             {
-                mensagem = ex is InvalidOperationException or ArgumentException
+                mensagem = ex is RegraDeNegocioException
                     ? ex.Message
                     : "Ocorreu um erro inesperado. Tente novamente.",
                 erro = ex.GetType().Name

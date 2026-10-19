@@ -19,10 +19,10 @@ public class CompraService
     public async Task<CompraDto> RegistrarAsync(CompraInput input, int usuarioId)
     {
         if (input.Itens == null || !input.Itens.Any())
-            throw new InvalidOperationException("A compra deve conter pelo menos um item.");
+            throw new RegraDeNegocioException("A compra deve conter pelo menos um item.");
 
         var fornecedor = await _context.Fornecedores.FindAsync(input.FornecedorId)
-            ?? throw new InvalidOperationException("Fornecedor não encontrado.");
+            ?? throw new RegraDeNegocioException("Fornecedor não encontrado.");
 
         var total = input.Itens.Sum(i => i.Quantidade * i.PrecoUnitario - i.Desconto);
 
@@ -46,7 +46,7 @@ public class CompraService
             {
                 var publicacao = await _context.Publicacoes.FindAsync(item.PublicacaoId);
                 if (publicacao == null)
-                    throw new InvalidOperationException($"Publicação ID {item.PublicacaoId} não encontrada.");
+                    throw new RegraDeNegocioException($"Publicação ID {item.PublicacaoId} não encontrada.");
 
                 publicacao.Estoque += item.Quantidade;
 

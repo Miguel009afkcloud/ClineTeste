@@ -84,7 +84,7 @@ public class ClienteService
     /// <summary>Baixa um pagamento do saldo devedor do cliente.</summary>
     public async Task<bool> LiquidarDividaAsync(int id, decimal valor)
     {
-        if (valor <= 0) throw new ArgumentException("O valor da liquidação deve ser maior que zero.", nameof(valor));
+        if (valor <= 0) throw new RegraDeNegocioException("O valor da liquidação deve ser maior que zero.");
 
         var cliente = await _context.Clientes.FindAsync(id);
         if (cliente == null) return false;
